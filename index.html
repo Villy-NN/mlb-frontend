@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Buddy AI: Baseball Picks</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        /* СВЕТЛЫЙ MLB ДИЗАЙН */
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #F0F2F5;
+            color: #111827;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            background: #002D72;
+            width: 100%;
+            padding: 15px 20px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-bottom: 4px solid #D50032;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-title {
+            font-weight: 800;
+            font-size: 22px;
+            color: #ffffff;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        
+        .header-title span {
+            color: #D50032;
+        }
+
+        #matches-container {
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .match-card {
+            background-color: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .match-card:hover {
+            transform: translateY(-2px);
+            border-color: #002D72;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        }
+
+        .team-names {
+            font-size: 17px;
+            font-weight: 600;
+            line-height: 1.5;
+            color: #111827;
+        }
+
+        .pitchers-text {
+            color: #4B5563 !important;
+            font-size: 13px !important;
+            margin-top: 8px;
+            font-weight: 500;
+        }
+
+        .btn-group { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
+        
+        button { font-family: 'Montserrat', sans-serif; transition: all 0.2s ease; }
+        button:hover:not(:disabled) { filter: brightness(1.1); transform: scale(1.02); }
+
+        .analyze-btn {
+            background: #002D72 !important;
+            box-shadow: 0 2px 6px rgba(0, 45, 114, 0.3);
+        }
+
+        .loading-text {
+            text-align: center; font-weight: 600; color: #6B7280; margin-top: 50px; font-size: 16px; animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-title">Buddy AI: <span>Baseball Picks</span></div>
+        <!-- Кнопки подгрузятся из app.js автоматически -->
+    </header>
+
+    <div id="matches-container">
+        <!-- Карточки матчей подгрузятся сюда -->
+    </div>
+
+    <!-- Библиотека Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Логика приложения -->
+    <script src="app.js"></script>
+</body>
+</html>
