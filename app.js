@@ -3,7 +3,9 @@ const API_URL = "https://mlb-ai-server.onrender.com";
 // === ПОДКЛЮЧЕНИЕ К ТВОЕЙ БАЗЕ SUPABASE ===
 const SUPABASE_URL = "https://fnuzgypznyzcphewmjdl.supabase.co"; 
 const SUPABASE_ANON_KEY = "sb_publishable_QihCry4fW9xq7S9cGJWCDg_TmUk46wP";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ИСПРАВЛЕНА ОШИБКА ЗДЕСЬ: переименовали переменную в supabaseClient
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
 let currentChatMatchId = null;
@@ -18,7 +20,7 @@ const isBoss = new URLSearchParams(window.location.search).get('boss') === '1';
 
 // ПРОВЕРКА: ВОШЕЛ ЛИ ПОЛЬЗОВАТЕЛЬ?
 async function checkSession() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await supabaseClient.auth.getSession();
     currentUser = session ? session.user : null;
     renderHeader();
     if (document.getElementById('unified-modal') && document.getElementById('unified-modal').style.display === 'flex') {
@@ -27,7 +29,7 @@ async function checkSession() {
 }
 
 // ОТСЛЕЖИВАНИЕ ВХОДА/ВЫХОДА В РЕАЛЬНОМ ВРЕМЕНИ
-supabase.auth.onAuthStateChange((event, session) => {
+supabaseClient.auth.onAuthStateChange((event, session) => {
     currentUser = session ? session.user : null;
     renderHeader();
     if (document.getElementById('unified-modal') && document.getElementById('unified-modal').style.display === 'flex') {
@@ -66,14 +68,14 @@ function renderHeader() {
 
 // ФУНКЦИИ ВХОДА И ВЫХОДА
 async function signInWithGoogle() {
-    await supabase.auth.signInWithOAuth({
+    await supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: window.location.origin }
     });
 }
 
 async function signOut() {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
 }
 
 // ЕДИНОЕ ОКНО ПРОГНОЗА
@@ -219,76 +221,4 @@ function renderChatControls() {
                 Unlock with Google
             </button>`;
     } else if (messagesLeft <= 0) {
-        controls.innerHTML = `<input type="text" disabled placeholder="⏳ Daily limit reached (5/5). Come back tomorrow!" style="flex-grow:1; padding:12px; border:1px solid #F59E0B; border-radius:8px; background:#FEF3C7; color:#B45309;">`;
-    } else {
-        controls.innerHTML = `
-            <input type="text" id="chat-user-input" placeholder="Ask Buddy about odds..." style="flex-grow:1; padding:12px; border:1px solid #D1D5DB; border-radius:8px; background:#FFFFFF; color:#111827; outline:none;">
-            <button onclick="sendChatMessage()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Send (${messagesLeft})</button>`;
-        document.getElementById('chat-user-input').addEventListener('keydown', e => { if (e.key === "Enter") sendChatMessage(); });
-    }
-}
-
-async function sendChatMessage() {
-    if (!currentUser || messagesLeft <= 0) return;
-    const input = document.getElementById('chat-user-input');
-    const msg = input.value.trim();
-    if (!msg || !currentChatMatchId) return;
-    appendMessageToChat("You", msg);
-    input.value = '';
-    messagesLeft--; localStorage.setItem(limitKey, messagesLeft.toString());
-    renderChatControls();
-    const container = document.getElementById('chat-messages-container');
-    const loader = document.createElement('div'); loader.id = "chat-loading"; loader.innerHTML = "<em style='color:#6B7280; font-size: 14px;'>Buddy is crunching the numbers... 🧠</em>";
-    container.appendChild(loader); scrollToBottom();
-    try {
-        const response = await fetch(`${API_URL}/matches/${currentChatMatchId}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg }) });
-        const data = await response.json();
-        document.getElementById('chat-loading').remove();
-        if (response.ok) appendMessageToChat("Buddy", data.reply); else appendMessageToChat("System Error ❌", data.detail);
-    } catch (e) { document.getElementById('chat-loading')?.remove(); appendMessageToChat("System Error ❌", "Timeout."); }
-}
-
-function appendMessageToChat(sender, text) {
-    const container = document.getElementById('chat-messages-container');
-    const msgDiv = document.createElement('div');
-    if (sender === "You") msgDiv.style = "align-self:flex-end; background:#002D72; color:white; padding:12px 16px; border-radius:16px 16px 4px 16px; max-width:80%; font-size:14px;";
-    else if (sender === "Buddy") msgDiv.style = "align-self:flex-start; background:#FFFFFF; color:#111827; padding:12px 16px; border-radius:16px 16px 16px 4px; max-width:80%; font-size:14px; border-left:4px solid #D50032; box-shadow: 0 2px 4px rgba(0,0,0,0.05);";
-    else msgDiv.style = "align-self:center; background:#D50032; color:white; padding:8px 12px; border-radius:8px; font-size: 13px;";
-    msgDiv.innerHTML = `<strong style="color:${sender==='Buddy'?'#D50032':(sender==='You'?'#93C5FD':'#fff')}; font-size: 12px; text-transform: uppercase;">${sender}</strong><br><span style="margin-top:4px; display:inline-block;">${text.replace(/\n/g, '<br>')}</span>`;
-    container.appendChild(msgDiv); scrollToBottom();
-}
-
-function scrollToBottom() { const scrollArea = document.getElementById('unified-scroll-area'); scrollArea.scrollTop = scrollArea.scrollHeight; }
-function closeUnifiedModal() { document.getElementById('unified-modal').style.display = 'none'; }
-
-function openAdminPanel(matchId, awayTeam, homeTeam) {
-    currentAdminMatchId = matchId;
-    document.getElementById('admin-password-field').value = '';
-    document.getElementById('admin-pitchers-field').value = '';
-    document.getElementById('admin-forecast-field').value = '';
-    document.getElementById('admin-stats-field').value = '';
-    document.getElementById('admin-modal').style.display = 'flex';
-}
-
-async function submitAdminUpdate() {
-    if (document.getElementById('admin-password-field').value !== "admin123") return alert("Access Denied!");
-    document.getElementById('admin-submit-btn').innerText = "Uploading...";
-    try {
-        await fetch(`${API_URL}/matches/${currentAdminMatchId}/admin-update`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                ai_analysis: document.getElementById('admin-forecast-field').value, 
-                preview_text: document.getElementById('admin-stats-field').value,
-                manual_pitchers: document.getElementById('admin-pitchers-field').value
-            })
-        });
-        closeAdminModal(); loadMatches();
-    } catch (e) { alert("Error"); }
-    document.getElementById('admin-submit-btn').innerText = "Save Draft";
-}
-
-function closeAdminModal() { document.getElementById('admin-modal').style.display = 'none'; }
-
-// Запуск процесса
-checkSession();
-loadMatches();
+        controls.innerHTML = `<input type="text" disabled placeholder="⏳ Daily limit reached (5/5). Come back tomorrow!" style="flex-grow:1; padding
