@@ -7,6 +7,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 
 let currentUser = null;
 let isUserVIP = false;
+let allMatches = []; // СВЕРХУМНАЯ ОПТИМИЗАЦИЯ: сохраняем матчи тут, чтобы окна открывались мгновенно!
 let currentChatMatchId = null;
 let currentAdminMatchId = null;
 
@@ -113,7 +114,7 @@ async function signInWithProvider(provider) { await supabaseClient.auth.signInWi
 async function signUpWithEmail() { const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; if (!email || password.length < 6) return alert("Enter valid email/password."); const { data, error } = await supabaseClient.auth.signUp({ email, password }); if (error) alert("Error: " + error.message); else { alert("Success! Check email if required."); closeAuthModal(); } }
 async function signInWithEmail() { const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) alert("Error: " + error.message); else closeAuthModal(); }
 
-// === ЗАМОК ОПЛАТЫ (PAYWALL) ===
+// === ЗАМОК ОПЛАТЫ ===
 const paywallModalHtml = `
     <div id="paywall-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index:2500; backdrop-filter: blur(5px);">
         <div style="background:#FFFFFF; width:90%; max-width:450px; border-radius:16px; overflow:hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.3); position:relative;">
@@ -141,19 +142,14 @@ function openPaywallModal() { document.getElementById('paywall-modal').style.dis
 function closePaywallModal() { document.getElementById('paywall-modal').style.display = 'none'; }
 
 function processTestPayment() {
-    // ⚠️ ВАЖНО: ВСТАВЬ СЮДА СВОЮ ССЫЛКУ STRIPE ⚠️
     const stripeUrl = "https://buy.stripe.com/test_dRm7sE0dfcL81fz32593y00";
-    
-    if (stripeUrl.includes("ВСТАВЬ")) {
-        alert("Тренер, вставь свою ссылку Stripe в код (строка 121)!");
-        return;
-    }
+    if (stripeUrl.includes("ВСТАВЬ")) { alert("Вставь ссылку Stripe на строке 121!"); return; }
     const btn = document.getElementById('stripe-test-btn');
     btn.innerHTML = "Redirecting..."; btn.style.background = "#9CA3AF";
     window.location.href = stripeUrl;
 }
 
-// === НОВОЕ ОКНО: MATCH CENTER (ИННИНГИ) ===
+// === ОКНО: MATCH CENTER (ОЖИВШИЕ ИННИНГИ) ===
 const matchCenterModalHtml = `
     <div id="match-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:1000;">
         <div style="background:#FFFFFF; width:95%; max-width:650px; border-radius:16px; display:flex; flex-direction:column; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding:20px; gap:20px;">
@@ -186,16 +182,37 @@ const matchCenterModalHtml = `
 `;
 document.body.insertAdjacentHTML('beforeend', matchCenterModalHtml);
 
-function openMatchModal(matchId, awayTeam, homeTeam, pitchers) {
-    document.getElementById('match-modal-title').innerText = `${awayTeam} @ ${homeTeam}`;
-    document.getElementById('match-modal-pitchers').innerText = pitchers ? "⚾ Pitchers: " + pitchers : "⚾ Pitchers: TBA";
+function openMatchModal(matchId) {
+    const match = allMatches.find(m => m.id === matchId);
+    if (!match) return;
+
+    document.getElementById('match-modal-title').innerText = `${match.away_team} @ ${match.home_team}`;
+    document.getElementById('match-modal-pitchers').innerText = match.manual_pitchers || match.pitchers ? "⚾ Pitchers: " + (match.manual_pitchers || match.pitchers) : "⚾ Pitchers: TBA";
     
-    // Заглушка иннингов (пока не подключим Python сервер)
-    let awayBox = `<td style="text-align:left; font-family:sans-serif; padding:8px 0;">${awayTeam.substring(0,3).toUpperCase()}</td>`;
-    let homeBox = `<td style="text-align:left; font-family:sans-serif; padding:8px 0;">${homeTeam.substring(0,3).toUpperCase()}</td>`;
-    for(let i=1; i<=9; i++) { awayBox += `<td>-</td>`; homeBox += `<td>-</td>`; }
-    awayBox += `<td style="color:#002D72; font-weight:900; padding-left:10px;">-</td><td>-</td><td>-</td>`;
-    homeBox += `<td style="color:#002D72; font-weight:900; padding-left:10px;">-</td><td>-</td><td>-</td>`;
+    // ПАРСИМ ОЖИВШИЕ ЦИФРЫ ОТ КАНАЛОВ MLB API
+    let l = match.linescore; // Получаем объект из бэкенда
+    if (!l) {
+        // Если данных еще нет (игра не началась) — рисуем пустые прочерки
+        l = {
+            away_innings: ["-","-","-","-","-","-","-","-","-"],
+            home_innings: ["-","-","-","-","-","-","-","-","-"],
+            away_totals: {r:"-", h:"-", e:"-"},
+            home_totals: {r:"-", h:"-", e:"-"}
+        };
+    }
+
+    let awayBox = `<td style="text-align:left; font-family:sans-serif; padding:8px 0;">${match.away_team.substring(0,3).toUpperCase()}</td>`;
+    let homeBox = `<td style="text-align:left; font-family:sans-serif; padding:8px 0;">${match.home_team.substring(0,3).toUpperCase()}</td>`;
+    
+    // Набиваем иннинги с 1 по 9
+    for(let i=0; i<9; i++) {
+        awayBox += `<td>${l.away_innings[i] !== undefined ? l.away_innings[i] : "-"}</td>`;
+        homeBox += `<td>${l.home_innings[i] !== undefined ? l.home_innings[i] : "-"}</td>`;
+    }
+    
+    // Итоговые Runs, Hits, Errors
+    awayBox += `<td style="color:#002D72; font-weight:900; padding-left:10px;">${l.away_totals.r}</td><td>${l.away_totals.h}</td><td>${l.away_totals.e}</td>`;
+    homeBox += `<td style="color:#002D72; font-weight:900; padding-left:10px;">${l.home_totals.r}</td><td>${l.home_totals.h}</td><td>${l.home_totals.e}</td>`;
     
     document.getElementById('linescore-away').innerHTML = awayBox;
     document.getElementById('linescore-home').innerHTML = homeBox;
@@ -204,7 +221,7 @@ function openMatchModal(matchId, awayTeam, homeTeam, pitchers) {
 function closeMatchModal() { document.getElementById('match-modal').style.display = 'none'; }
 
 
-// === ОКНО ПРОГНОЗА И ЧАТА (ФРИ ПРОГНОЗ + ПЕЙВОЛ НА ЧАТ) ===
+// === ОКНО ПРОГНОЗА И ЧАТА ===
 const forecastModalHtml = `
     <div id="forecast-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:1000;">
         <div style="background:#FFFFFF; width:95%; max-width:600px; height:85%; border-radius:16px; display:flex; flex-direction:column; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
@@ -213,48 +230,33 @@ const forecastModalHtml = `
                 <button onclick="closeForecastModal()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">&times;</button>
             </div>
             <div id="forecast-scroll-area" style="flex-grow:1; padding:20px; overflow-y:auto; display:flex; flex-direction:column; gap:20px; background:#F9FAFB;">
-                
-                <!-- ЭТА ЧАСТЬ ОТКРЫТА ДЛЯ ВСЕХ -->
                 <div style="background:#FFFFFF; border-left: 4px solid #10B981; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                     <h4 style="margin:0 0 10px 0; color:#10B981; text-transform:uppercase; font-size:14px; display:flex; justify-content:space-between;">
-                        <span>Free Daily Forecast</span>
-                        <span style="font-size:11px; color:#6B7280;">Unlocked 🔓</span>
+                        <span>Free Daily Forecast</span><span style="font-size:11px; color:#6B7280;">Unlocked 🔓</span>
                     </h4>
-                    <div id="forecast-text-content" style="color:#111827; font-size:15px; line-height:1.6;">Loading analysis...</div>
+                    <div id="forecast-text-content" style="color:#111827; font-size:15px; line-height:1.6;">Loading...</div>
                 </div>
-
-                <!-- ЭТА ЧАСТЬ - ЧАТ -->
                 <div style="text-align: center; color: #6B7280; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin-top: 10px;">Live VIP Discussion</div>
                 <div id="chat-messages-container" style="display:flex; flex-direction:column; gap:12px;"></div>
             </div>
-            
-            <!-- ПАНЕЛЬ ВВОДА С ЗАМКОМ -->
             <div id="chat-controls" style="padding:15px; border-top:1px solid #E5E7EB; background:#FFFFFF; display:flex; gap:10px;"></div>
         </div>
     </div>
 `;
 document.body.insertAdjacentHTML('beforeend', forecastModalHtml);
 
-function openForecastModal(matchId, awayTeam, homeTeam) {
+function openForecastModal(matchId) {
     currentChatMatchId = matchId;
-    document.getElementById('forecast-modal-title').innerText = `${awayTeam} @ ${homeTeam}`;
+    const match = allMatches.find(m => m.id === matchId);
+    if (!match) return;
+
+    document.getElementById('forecast-modal-title').innerText = `${match.away_team} @ ${match.home_team}`;
+    document.getElementById('forecast-text-content').innerHTML = match.ai_analysis ? match.ai_analysis.replace(/\n/g, '<br>') : `<span style="color:#6B7280; font-style:italic;">Forecast not published yet.</span>`;
+    document.getElementById('chat-messages-container').innerHTML = '';
+    if (match.chat_history) match.chat_history.forEach(msg => appendMessageToChat(msg.role === "user" ? "You" : "Buddy", msg.text));
+    
     document.getElementById('forecast-modal').style.display = 'flex';
-    
-    // Блокируем или открываем поле ввода
     renderChatControls();
-    
-    const forecastContainer = document.getElementById('forecast-text-content');
-    forecastContainer.innerHTML = '<em style="color:#6B7280;">Loading forecast...</em>';
-    
-    fetch(`${API_URL}/matches${isBoss ? '?boss=1' : '?boss=0'}`).then(r => r.json()).then(matches => {
-        const match = matches.find(m => m.id === matchId);
-        if (match) {
-            forecastContainer.innerHTML = match.ai_analysis ? match.ai_analysis.replace(/\n/g, '<br>') : `<span style="color:#6B7280; font-style:italic;">Forecast not published yet.</span>`;
-            document.getElementById('chat-messages-container').innerHTML = '';
-            // Загружаем прошлые сообщения, если они есть (свои и бота)
-            if (match.chat_history) match.chat_history.forEach(msg => appendMessageToChat(msg.role === "user" ? "You" : "Buddy", msg.text));
-        }
-    });
 }
 function closeForecastModal() { document.getElementById('forecast-modal').style.display = 'none'; }
 
@@ -272,22 +274,7 @@ function renderChatControls() {
     }
 }
 
-// === АДМИН ПАНЕЛЬ И ЗАГРУЗКА МАТЧЕЙ ===
-const adminModalHtml = `
-    <div id="admin-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:1001;">
-        <div style="background:#FFFFFF; width:95%; max-width:550px; border-radius:12px; border-top: 4px solid #D50032; display:flex; flex-direction:column; padding:20px; gap:12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #E5E7EB; padding-bottom:10px;"><h3 id="admin-modal-title" style="margin:0; color:#002D72;">Control Room</h3><button onclick="closeAdminModal()" style="background:none; border:none; color:#6B7280; font-size:22px; cursor:pointer;">&times;</button></div>
-            <input type="password" id="admin-password-field" placeholder="Secret Key..." style="width:100%; padding:10px; background:#F3F4F6; border:1px solid #D1D5DB; color:#111827; border-radius:8px;">
-            <label style="font-size:12px; font-weight:bold; color:#002D72;">Manual Pitcher Stats:</label>
-            <input type="text" id="admin-pitchers-field" placeholder="e.g. #34 RHP, 4-3, 3.23 vs #22 LHP..." style="width:100%; padding:10px; background:#F3F4F6; border:1px solid #D1D5DB; color:#111827; border-radius:8px;">
-            <textarea id="admin-forecast-field" placeholder="Public Forecast..." rows="3" style="width:100%; padding:10px; background:#F3F4F6; border:1px solid #D1D5DB; border-radius:8px; resize:vertical;"></textarea>
-            <textarea id="admin-stats-field" placeholder="B-R Raw Tables..." rows="3" style="width:100%; padding:10px; background:#F3F4F6; border:1px solid #D1D5DB; border-radius:8px; resize:vertical; font-family:monospace; font-size:12px;"></textarea>
-            <div style="display:flex; justify-content:flex-end; gap:10px;"><button onclick="closeAdminModal()" style="background:#E5E7EB; color:#374151; border:none; padding:10px 20px; border-radius:8px; font-weight:bold;">Cancel</button><button id="admin-submit-btn" onclick="submitAdminUpdate()" style="background:#002D72; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:bold;">Save Draft</button></div>
-        </div>
-    </div>
-`;
-document.body.insertAdjacentHTML('beforeend', adminModalHtml);
-
+// === ЗАГРУЗКА БОРДА ===
 async function loadSchedule() { try { await fetch(`${API_URL}/fetch-schedule`); await loadMatches(); } catch (e) {} }
 async function publishBoard() { if(confirm("GO LIVE?")) { await fetch(`${API_URL}/publish-board`, {method: 'POST'}); loadMatches(); } }
 
@@ -296,10 +283,11 @@ async function loadMatches() {
     container.innerHTML = '<div class="loading-text">Loading premium board...</div>';
     try {
         const response = await fetch(isBoss ? `${API_URL}/matches?boss=1` : `${API_URL}/matches?boss=0`);
-        const matches = await response.json();
-        if (matches.length === 0) return container.innerHTML = '<div class="loading-text">No games found.</div>';
+        allMatches = await response.json(); // СОХРАНЯЕМ ВСЁ В ПАМЯТЬ КЛИЕНТА
+        
+        if (allMatches.length === 0) return container.innerHTML = '<div class="loading-text">No games found.</div>';
         container.innerHTML = ''; 
-        matches.forEach(match => {
+        allMatches.forEach(match => {
             const card = document.createElement('div'); card.className = 'match-card';
             const draftTag = (isBoss && !match.is_published) ? `<span style="background:#F59E0B; color:white; font-size:10px; padding:2px 6px; border-radius:4px; margin-left:10px;">DRAFT</span>` : '';
             const adminBtn = isBoss ? `<button onclick="openAdminPanel('${match.id}', '${match.away_team}', '${match.home_team}')" style="color:white; border:none; padding:8px 12px; font-weight:bold; cursor:pointer; margin-top:5px; background:#D50032; border-radius:8px;">⚙️ Admin</button>` : '';
@@ -320,8 +308,8 @@ async function loadMatches() {
                     ${pitchersHtml}
                 </div>
                 <div class="btn-group" style="display: flex; flex-direction:column; justify-content:center; margin-left: 15px; gap:8px;">
-                    <button class="analyze-btn" onclick="openMatchModal('${match.id}', '${match.away_team}', '${match.home_team}', '${match.manual_pitchers || match.pitchers}')" style="color:#002D72; background:#E5E7EB!important; border:1px solid #002D72; padding:10px 12px; border-radius:8px; font-weight:bold; cursor:pointer;">📊 Box Score</button>
-                    <button class="analyze-btn" onclick="openForecastModal('${match.id}', '${match.away_team}', '${match.home_team}')" style="color:white; background:#002D72!important; border:none; padding:10px 12px; border-radius:8px; font-weight:bold; cursor:pointer;">📖 Forecast & Chat</button>
+                    <button class="analyze-btn" onclick="openMatchModal('${match.id}')" style="color:#002D72; background:#E5E7EB!important; border:1px solid #002D72; padding:10px 12px; border-radius:8px; font-weight:bold; cursor:pointer;">📊 Box Score</button>
+                    <button class="analyze-btn" onclick="openForecastModal('${match.id}')" style="color:white; background:#002D72!important; border:none; padding:10px 12px; border-radius:8px; font-weight:bold; cursor:pointer;">📖 Forecast & Chat</button>
                     ${adminBtn}
                 </div>
             `;
