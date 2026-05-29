@@ -12,11 +12,6 @@ let currentChatMatchId = null;
 let currentBoxScoreMatchId = null; 
 let currentAdminMatchId = null;
 
-const todayStr = new Date().toDateString();
-const limitKey = 'vipMsgs_' + todayStr;
-if (localStorage.getItem(limitKey) === null) localStorage.setItem(limitKey, '5');
-let messagesLeft = parseInt(localStorage.getItem(limitKey));
-
 const isBoss = new URLSearchParams(window.location.search).get('boss') === '1';
 
 // ПРОВЕРКА СЕССИИ И ОПЛАТЫ
@@ -143,7 +138,6 @@ function openPaywallModal() { document.getElementById('paywall-modal').style.dis
 function closePaywallModal() { document.getElementById('paywall-modal').style.display = 'none'; }
 
 function processTestPayment() {
-    // ВСТАВЬ СВОЮ ССЫЛКУ STRIPE СЮДА!
     const stripeUrl = "https://buy.stripe.com/test_dRm7sE0dfcL81fz32593y00";
     const btn = document.getElementById('stripe-test-btn');
     btn.innerHTML = "Redirecting..."; btn.style.background = "#9CA3AF";
@@ -264,16 +258,16 @@ function closeForecastModal() {
     currentChatMatchId = null;
 }
 
+// === БЕЗЛИМИТНЫЙ ЧАТ ДЛЯ VIP ===
 function renderChatControls() {
     const controls = document.getElementById('chat-controls');
     if (!currentUser) {
         controls.innerHTML = `<input type="text" disabled placeholder="🔒 Locked. Please sign in to chat." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#F3F4F6; color:#6B7280;"><button onclick="openAuthModal()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Sign In</button>`;
     } else if (!isUserVIP) {
         controls.innerHTML = `<input type="text" disabled placeholder="🔒 VIP Required to ask Buddy questions." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#FEF3C7; color:#B45309;"><button onclick="openPaywallModal()" style="background:#10B981; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.3);">💎 Upgrade to VIP</button>`;
-    } else if (messagesLeft <= 0) {
-        controls.innerHTML = `<input type="text" disabled placeholder="⏳ Daily limit reached (5/5)." style="flex-grow:1; padding:12px; border:1px solid #F59E0B; border-radius:8px; background:#FEF3C7; color:#B45309;">`;
     } else {
-        controls.innerHTML = `<input type="text" id="chat-user-input" placeholder="Ask Buddy about odds or players..." style="flex-grow:1; padding:12px; border:1px solid #D1D5DB; border-radius:8px; background:#FFFFFF; color:#111827; outline:none;"><button onclick="sendChatMessage()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Send (${messagesLeft})</button>`;
+        // Убрали лимит (5/5). Теперь просто кнопка Send!
+        controls.innerHTML = `<input type="text" id="chat-user-input" placeholder="Ask Buddy about odds or players..." style="flex-grow:1; padding:12px; border:1px solid #D1D5DB; border-radius:8px; background:#FFFFFF; color:#111827; outline:none;"><button onclick="sendChatMessage()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Send</button>`;
         document.getElementById('chat-user-input').addEventListener('keydown', e => { if (e.key === "Enter") sendChatMessage(); });
     }
 }
@@ -314,21 +308,13 @@ async function loadMatches() {
             const getWeight = (st) => {
                 if (!st) return 2;
                 let s = st.toLowerCase();
-                // Высший приоритет (1) - идут прямо сейчас
                 if (s.includes('live') || s.includes('progress') || s.includes('warmup')) return 1;
-                // Низший приоритет (3) - уже закончились
                 if (s.includes('final') || s.includes('game over') || s.includes('completed')) return 3;
-                // Средний приоритет (2) - ожидаются (Scheduled, Preview, Delayed)
                 return 2; 
             };
-            
             let weightA = getWeight(a.status);
             let weightB = getWeight(b.status);
-            
-            // Если статусы разные, ставим Live выше, Final ниже
             if (weightA !== weightB) return weightA - weightB;
-            
-            // Если статусы одинаковые, сортируем по номеру матча (по времени)
             return a.id.localeCompare(b.id);
         });
         // ---------------------------------
@@ -378,9 +364,13 @@ async function loadMatches() {
 }
 
 async function sendChatMessage() {
-    if (!currentUser || !isUserVIP || messagesLeft <= 0) return;
+    if (!currentUser || !isUserVIP) return; // Убрали проверку на лимиты!
     const input = document.getElementById('chat-user-input'); const msg = input.value.trim(); if (!msg || !currentChatMatchId) return;
-    appendMessageToChat("You", msg); input.value = ''; messagesLeft--; localStorage.setItem(limitKey, messagesLeft.toString()); renderChatControls();
+    
+    appendMessageToChat("You", msg); 
+    input.value = ''; 
+    renderChatControls();
+    
     const container = document.getElementById('chat-messages-container'); const loader = document.createElement('div'); loader.id = "chat-loading"; loader.innerHTML = "<em style='color:#6B7280; font-size: 14px;'>🧠 Crunching numbers...</em>"; container.appendChild(loader); scrollToBottom();
     try {
         const response = await fetch(`${API_URL}/matches/${currentChatMatchId}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg }) });
