@@ -7,9 +7,9 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 
 let currentUser = null;
 let isUserVIP = false;
-let allMatches = []; // Локальное хранилище матчей для мгновенной работы окон
+let allMatches = []; // Локальное хранилище матчей
 let currentChatMatchId = null;
-let currentBoxScoreMatchId = null; // Храним ID открытого Box Score табло
+let currentBoxScoreMatchId = null; 
 let currentAdminMatchId = null;
 
 const todayStr = new Date().toDateString();
@@ -29,7 +29,7 @@ async function checkSession() {
         localStorage.setItem('vip_status_' + currentUser.email, 'true');
         isUserVIP = true;
         window.history.replaceState({}, document.title, window.location.pathname);
-        setTimeout(() => alert("CN Payment Successful! Welcome to the VIP Club!"), 500);
+        setTimeout(() => alert("💳 Payment Successful! Welcome to the VIP Club!"), 500);
     } else {
         checkVipStatus();
     }
@@ -67,13 +67,13 @@ function renderHeader() {
     let headerButtons = '';
     if (isBoss) {
         headerButtons += `
-            <button onclick="publishBoard()" style="background-color: #10B981; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">i Publish</button>
+            <button onclick="publishBoard()" style="background-color: #10B981; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">🚀 Publish</button>
             <button id="sync-stats-btn" onclick="loadSchedule()" style="background-color: #D50032; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">Load DB</button>
         `;
     }
     if (currentUser) {
         const name = currentUser.email ? currentUser.email.split('@')[0] : "User";
-        const badge = isUserVIP ? "I VIP" : "I Free";
+        const badge = isUserVIP ? "👑 VIP" : "👤 Free";
         headerButtons += `<button onclick="signOut()" style="background-color: #002D72; color: white; border: 1px solid #ffffff; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">${badge}: ${name} (Exit)</button>`;
     } else {
         headerButtons += `<button onclick="openAuthModal()" style="background-color: #E5E7EB; color: #111827; border: 1px solid #D1D5DB; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">Sign In</button>`;
@@ -101,8 +101,8 @@ const authModalHtml = `
                 <div style="flex:1; height:1px; background:#E5E7EB;"></div><span style="margin:0 10px;">or continue with</span><div style="flex:1; height:1px; background:#E5E7EB;"></div>
             </div>
             <div style="display:flex; flex-direction:column; gap:10px;">
-                <button onclick="signInWithProvider('google')" style="padding:12px; background:#FFFFFF; color:#374151; border:1px solid #D1D5DB; border-radius:8px; font-weight:bold; cursor:pointer;">U Google</button>
-                <button onclick="signInWithProvider('discord')" style="padding:12px; background:#5865F2; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">_ Discord</button>
+                <button onclick="signInWithProvider('google')" style="padding:12px; background:#FFFFFF; color:#374151; border:1px solid #D1D5DB; border-radius:8px; font-weight:bold; cursor:pointer;">🔴 Google</button>
+                <button onclick="signInWithProvider('discord')" style="padding:12px; background:#5865F2; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">🟣 Discord</button>
             </div>
         </div>
     </div>
@@ -115,7 +115,7 @@ async function signInWithProvider(provider) { await supabaseClient.auth.signInWi
 async function signUpWithEmail() { const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; if (!email || password.length < 6) return alert("Enter valid email/password."); const { data, error } = await supabaseClient.auth.signUp({ email, password }); if (error) alert("Error: " + error.message); else { alert("Success! Check email if required."); closeAuthModal(); } }
 async function signInWithEmail() { const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) alert("Error: " + error.message); else closeAuthModal(); }
 
-// === ЗАМОК ОПЛАТЫ ===
+// === ЗАМОК ОПЛАТЫ (STRIPE) ===
 const paywallModalHtml = `
     <div id="paywall-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index:2500; backdrop-filter: blur(5px);">
         <div style="background:#FFFFFF; width:90%; max-width:450px; border-radius:16px; overflow:hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.3); position:relative;">
@@ -125,14 +125,14 @@ const paywallModalHtml = `
                 <p style="margin:10px 0 0 0; color:#93C5FD; font-size:14px;">Get personal consulting and deep metrics</p>
             </div>
             <div style="padding: 30px 20px;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-weight:600; font-size:15px;"><span>A Direct Line with Buddy AI</span><span style="color:#10B981;">Unlimited</span></div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-weight:600; font-size:15px;"><span>A Live Odds Line Analysis</span><span style="color:#10B981;">Included</span></div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:25px; font-weight:600; font-size:15px;"><span>A Pro Analytics & Trends</span><span style="color:#10B981;">Included</span></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-weight:600; font-size:15px;"><span>✅ Direct Line with Buddy AI</span><span style="color:#10B981;">Unlimited</span></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-weight:600; font-size:15px;"><span>✅ Live Odds Line Analysis</span><span style="color:#10B981;">Included</span></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:25px; font-weight:600; font-size:15px;"><span>✅ Pro Analytics & Trends</span><span style="color:#10B981;">Included</span></div>
                 <div style="text-align:center; font-size:32px; font-weight:800; color:#111827; margin-bottom:20px;">$29.99 <span style="font-size:14px; font-weight:normal; color:#6B7280;">/ month</span></div>
                 <button id="stripe-test-btn" onclick="processTestPayment()" style="width:100%; background:#635BFF; color:white; border:none; padding:15px; border-radius:8px; font-weight:bold; font-size:16px; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:10px;">
-                    CN Pay with Stripe
+                    💳 Pay with Stripe
                 </button>
-                <div style="text-align:center; font-size:11px; color:#9CA3AF; margin-top:15px;">M Secured by Stripe. Cancel anytime.</div>
+                <div style="text-align:center; font-size:11px; color:#9CA3AF; margin-top:15px;">🔒 Secured by Stripe. Cancel anytime.</div>
             </div>
         </div>
     </div>
@@ -143,9 +143,8 @@ function openPaywallModal() { document.getElementById('paywall-modal').style.dis
 function closePaywallModal() { document.getElementById('paywall-modal').style.display = 'none'; }
 
 function processTestPayment() {
-    // ⚠️ ВСТАВЬ СВОЮ ССЫЛКУ ИЗ STRIPE СЮДА ⚠️
+    // ТВОЯ ССЫЛКА STRIPE УЖЕ ЗДЕСЬ!
     const stripeUrl = "https://buy.stripe.com/test_dRm7sE0dfcL81fz32593y00";
-    if (stripeUrl.includes("ВСТАВЬ")) { alert("Вставь ссылку Stripe на строке 121!"); return; }
     const btn = document.getElementById('stripe-test-btn');
     btn.innerHTML = "Redirecting..."; btn.style.background = "#9CA3AF";
     window.location.href = stripeUrl;
@@ -192,13 +191,12 @@ function closeMatchModal() {
     currentBoxScoreMatchId = null;
 }
 
-// РЕНДЕРИНГ ЖИВЫХ ИННИНГОВ ВНУТРИ ОКНА БЕЗ ЕГО ЗАКРЫТИЯ
 function updateBoxScoreModalData(matchId) {
     const match = allMatches.find(m => m.id === matchId);
     if (!match) return;
 
     document.getElementById('match-modal-title').innerText = `${match.away_team} @ ${match.home_team}`;
-    document.getElementById('match-modal-pitchers').innerText = match.manual_pitchers || match.pitchers ? "c Pitchers: " + (match.manual_pitchers || match.pitchers) : "c Pitchers: TBA";
+    document.getElementById('match-modal-pitchers').innerText = match.manual_pitchers || match.pitchers ? "⚾ Pitchers: " + (match.manual_pitchers || match.pitchers) : "⚾ Pitchers: TBA";
     
     let l = match.linescore;
     if (!l) {
@@ -235,7 +233,7 @@ const forecastModalHtml = `
             <div id="forecast-scroll-area" style="flex-grow:1; padding:20px; overflow-y:auto; display:flex; flex-direction:column; gap:20px; background:#F9FAFB;">
                 <div style="background:#FFFFFF; border-left: 4px solid #10B981; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                     <h4 style="margin:0 0 10px 0; color:#10B981; text-transform:uppercase; font-size:14px; display:flex; justify-content:space-between;">
-                        <span>Free Daily Forecast</span><span style="font-size:11px; color:#6B7280;">Unlocked m</span>
+                        <span>Free Daily Forecast</span><span style="font-size:11px; color:#6B7280;">Unlocked 🔓</span>
                     </h4>
                     <div id="forecast-text-content" style="color:#111827; font-size:15px; line-height:1.6;">Loading...</div>
                 </div>
@@ -269,11 +267,11 @@ function closeForecastModal() {
 function renderChatControls() {
     const controls = document.getElementById('chat-controls');
     if (!currentUser) {
-        controls.innerHTML = `<input type="text" disabled placeholder="M Locked. Please sign in to chat." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#F3F4F6; color:#6B7280;"><button onclick="openAuthModal()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Sign In</button>`;
+        controls.innerHTML = `<input type="text" disabled placeholder="🔒 Locked. Please sign in to chat." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#F3F4F6; color:#6B7280;"><button onclick="openAuthModal()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Sign In</button>`;
     } else if (!isUserVIP) {
-        controls.innerHTML = `<input type="text" disabled placeholder="M VIP Required to ask Buddy questions." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#FEF3C7; color:#B45309;"><button onclick="openPaywallModal()" style="background:#10B981; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.3);">I Upgrade to VIP</button>`;
+        controls.innerHTML = `<input type="text" disabled placeholder="🔒 VIP Required to ask Buddy questions." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#FEF3C7; color:#B45309;"><button onclick="openPaywallModal()" style="background:#10B981; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.3);">💎 Upgrade to VIP</button>`;
     } else if (messagesLeft <= 0) {
-        controls.innerHTML = `<input type="text" disabled placeholder="t Daily limit reached (5/5)." style="flex-grow:1; padding:12px; border:1px solid #F59E0B; border-radius:8px; background:#FEF3C7; color:#B45309;">`;
+        controls.innerHTML = `<input type="text" disabled placeholder="⏳ Daily limit reached (5/5)." style="flex-grow:1; padding:12px; border:1px solid #F59E0B; border-radius:8px; background:#FEF3C7; color:#B45309;">`;
     } else {
         controls.innerHTML = `<input type="text" id="chat-user-input" placeholder="Ask Buddy about odds or players..." style="flex-grow:1; padding:12px; border:1px solid #D1D5DB; border-radius:8px; background:#FFFFFF; color:#111827; outline:none;"><button onclick="sendChatMessage()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Send (${messagesLeft})</button>`;
         document.getElementById('chat-user-input').addEventListener('keydown', e => { if (e.key === "Enter") sendChatMessage(); });
@@ -299,11 +297,10 @@ document.body.insertAdjacentHTML('beforeend', adminModalHtml);
 async function loadSchedule() { try { await fetch(`${API_URL}/fetch-schedule`); await loadMatches(); } catch (e) {} }
 async function publishBoard() { if(confirm("GO LIVE?")) { await fetch(`${API_URL}/publish-board`, {method: 'POST'}); loadMatches(); } }
 
-// === ЖИВАЯ ЗАГРУЗКА И АВТО-ОБНОВЛЕНИЕ БЕЗ МИГАНИЯ ЭКРАНА ===
+// === ЗАГРУЗКА И АВТО-ОБНОВЛЕНИЕ ===
 async function loadMatches() {
     const container = document.getElementById('matches-container');
     
-    // Показываем надпись Loading только при САМОМ ПЕРВОМ открытии сайта
     if (allMatches.length === 0) {
         container.innerHTML = '<div class="loading-text">Loading premium board...</div>';
     }
@@ -312,12 +309,10 @@ async function loadMatches() {
         const response = await fetch(isBoss ? `${API_URL}/matches?boss=1` : `${API_URL}/matches?boss=0`);
         allMatches = await response.json();
         
-        // 1. Если у пользователя открыт Box Score — обновляем иннинги прямо на экране!
         if (currentBoxScoreMatchId && document.getElementById('match-modal').style.display === 'flex') {
             updateBoxScoreModalData(currentBoxScoreMatchId);
         }
         
-        // 2. Отрисовываем карточки матчей на главной
         container.innerHTML = ''; 
         allMatches.forEach(match => {
             const card = document.createElement('div'); card.className = 'match-card';
@@ -325,9 +320,11 @@ async function loadMatches() {
             const adminBtn = isBoss ? `<button onclick="openAdminPanel('${match.id}', '${match.away_team}', '${match.home_team}')" style="color:white; border:none; padding:8px 12px; font-weight:bold; cursor:pointer; margin-top:5px; background:#D50032; border-radius:8px;">⚙️ Admin</button>` : '';
             
             let scoreDisplay = `<span style="color:#6B7280; font-size:13px;">@</span>`;
-            if (match.status === "Final" || match.status === "Game Over" or match.status.includes("Final")) {
+            
+            // ИСПРАВЛЕННАЯ СТРОКА: || вместо or
+            if (match.status === "Final" || match.status === "Game Over" || (match.status && match.status.includes("Final"))) {
                 scoreDisplay = `<div style="font-weight: 800; font-size: 22px; color: #002D72; margin: 4px 0;">${match.score}</div><div style="color: #D50032; font-size: 11px; font-weight: 800;">FINAL</div>`;
-            } else if (match.status.includes("In Progress") || match.status === "Live" || match.status.includes("Warmup")) {
+            } else if ((match.status && match.status.includes("In Progress")) || match.status === "Live" || (match.status && match.status.includes("Warmup"))) {
                 scoreDisplay = `<div style="font-weight: 800; font-size: 22px; color: #10B981; margin: 4px 0;">${match.score}</div><div style="color: #10B981; font-size: 11px; font-weight: 800;">LIVE</div>`;
             } else {
                 scoreDisplay = `<div style="font-weight: 800; font-size: 14px; color: #6B7280; margin: 4px 0;">${match.status}</div>`;
@@ -383,7 +380,6 @@ function openAdminPanel(matchId, awayTeam, homeTeam) { currentAdminMatchId = mat
 async function submitAdminUpdate() { if (document.getElementById('admin-password-field').value !== "admin123") return alert("Access Denied!"); document.getElementById('admin-submit-btn').innerText = "Uploading..."; try { await fetch(`${API_URL}/matches/${currentAdminMatchId}/admin-update`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ai_analysis: document.getElementById('admin-forecast-field').value, preview_text: document.getElementById('admin-stats-field').value, manual_pitchers: document.getElementById('admin-pitchers-field').value }) }); closeAdminModal(); loadMatches(); } catch (e) { alert("Error"); } document.getElementById('admin-submit-btn').innerText = "Save Draft"; }
 function closeAdminModal() { document.getElementById('admin-modal').style.display = 'none'; }
 
-// === СВЕРХВАЖНО: ЗАПУСКАЕМ ТАЙМЕР АВТО-ОБНОВЛЕНИЯ РАЗ В 30 СЕКУНД ===
 checkSession();
 loadMatches(); 
-setInterval(loadMatches, 30000); // Каждые 30 000 миллисекунд сайт сам шлет тихий запрос
+setInterval(loadMatches, 30000);
