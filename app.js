@@ -1,6 +1,10 @@
 const API_URL = "https://mlb-ai-server.onrender.com";
 
-let supabaseClient = null; // Инициализируется динамически без хардкода!
+// Ключи Supabase официально разрешено держать здесь (это публичный Anon Key)
+const SUPABASE_URL = "https://fnuzgypznyzcphewmjdl.supabase.co"; 
+const SUPABASE_ANON_KEY = "sb_publishable_QihCry4fW9xq7S9cGJWCDg_TmUk46wP";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 let currentUser = null;
 let isUserVIP = false;
 let allMatches = []; 
@@ -10,34 +14,7 @@ let currentAdminMatchId = null;
 
 const isBoss = new URLSearchParams(window.location.search).get('boss') === '1';
 
-// БЕЗОПАСНАЯ СВЕРХУМНАЯ ИНИЦИАЛИЗАЦИЯ SUPABASE
-async function initApplication() {
-    try {
-        // Запрашиваем конфигурацию у нашего защищенного бэкенда
-        const response = await fetch(`${API_URL}/config`);
-        const config = await response.json();
-        
-        if (!config.supabase_url || !config.supabase_anon_key) {
-            console.error("Supabase config variables are missing on the Render server!");
-            return;
-        }
-        
-        // Создаем клиент на лету
-        supabaseClient = window.supabase.createClient(config.supabase_url, config.supabase_anon_key);
-        
-        // Запускаем стандартные процессы сессии и матчей
-        await checkSession();
-        await loadMatches(); 
-        setInterval(loadMatches, 30000); // Автообновление каждые 30 сек
-        
-    } catch (e) {
-        console.error("Initialization error:", e);
-    }
-}
-
-// ПРОВЕРКА СЕССИИ И ОПЛАТЫ
 async function checkSession() {
-    if (!supabaseClient) return;
     const { data: { session } } = await supabaseClient.auth.getSession();
     currentUser = session ? session.user : null;
     
@@ -56,6 +33,15 @@ async function checkSession() {
         renderChatControls();
     }
 }
+
+supabaseClient.auth.onAuthStateChange((event, session) => {
+    currentUser = session ? session.user : null;
+    checkVipStatus();
+    renderHeader();
+    if (document.getElementById('forecast-modal') && document.getElementById('forecast-modal').style.display === 'flex') {
+        renderChatControls();
+    }
+});
 
 function checkVipStatus() {
     if (!currentUser) { isUserVIP = false; return; }
@@ -89,7 +75,7 @@ function renderHeader() {
     buttonsContainer.innerHTML = headerButtons;
 }
 
-async function signOut() { if (supabaseClient) { await supabaseClient.auth.signOut(); localStorage.removeItem('vip_status_' + currentUser.email); location.reload(); } }
+async function signOut() { await supabaseClient.auth.signOut(); localStorage.removeItem('vip_status_' + currentUser.email); location.reload(); }
 
 // === ОКНО АВТОРИЗАЦИИ ===
 const authModalHtml = `
@@ -119,9 +105,9 @@ document.body.insertAdjacentHTML('beforeend', authModalHtml);
 
 function openAuthModal() { document.getElementById('auth-modal').style.display = 'flex'; }
 function closeAuthModal() { document.getElementById('auth-modal').style.display = 'none'; }
-async function signInWithProvider(provider) { if (supabaseClient) await supabaseClient.auth.signInWithOAuth({ provider: provider, options: { redirectTo: window.location.origin } }); }
-async function signUpWithEmail() { if (!supabaseClient) return; const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; if (!email || password.length < 6) return alert("Enter valid email/password."); const { data, error } = await supabaseClient.auth.signUp({ email, password }); if (error) alert("Error: " + error.message); else { alert("Success! Check email if required."); closeAuthModal(); } }
-async function signInWithEmail() { if (!supabaseClient) return; const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) alert("Error: " + error.message); else closeAuthModal(); }
+async function signInWithProvider(provider) { await supabaseClient.auth.signInWithOAuth({ provider: provider, options: { redirectTo: window.location.origin } }); }
+async function signUpWithEmail() { const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; if (!email || password.length < 6) return alert("Enter valid email/password."); const { data, error } = await supabaseClient.auth.signUp({ email, password }); if (error) alert("Error: " + error.message); else { alert("Success! Check email if required."); closeAuthModal(); } }
+async function signInWithEmail() { const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) alert("Error: " + error.message); else closeAuthModal(); }
 
 // === ЗАМОК ОПЛАТЫ (STRIPE) ===
 const paywallModalHtml = `
@@ -151,7 +137,7 @@ function openPaywallModal() { document.getElementById('paywall-modal').style.dis
 function closePaywallModal() { document.getElementById('paywall-modal').style.display = 'none'; }
 
 function processTestPayment() {
-    const stripeUrl = "https://buy.stripe.com/test_dRm7sE0dfcL81fz32593y00"; // ССЫЛКА ОСТАЕТСЯ НА ВЕК С НАМИ!
+    const stripeUrl = "https://buy.stripe.com/test_dRm7sE0dfcL81fz32593y00";
     const btn = document.getElementById('stripe-test-btn');
     btn.innerHTML = "Redirecting Securely..."; btn.style.background = "#9CA3AF";
     window.location.href = stripeUrl;
@@ -382,5 +368,7 @@ function openAdminPanel(matchId, awayTeam, homeTeam) { currentAdminMatchId = mat
 async function submitAdminUpdate() { if (document.getElementById('admin-password-field').value !== "admin123") return alert("Access Denied!"); document.getElementById('admin-submit-btn').innerText = "Uploading..."; try { await fetch(`${API_URL}/matches/${currentAdminMatchId}/admin-update`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ai_analysis: document.getElementById('admin-forecast-field').value, preview_text: document.getElementById('admin-stats-field').value, manual_pitchers: document.getElementById('admin-pitchers-field').value }) }); closeAdminModal(); loadMatches(); } catch (e) { alert("Error"); } document.getElementById('admin-submit-btn').innerText = "Save Draft"; }
 function closeAdminModal() { document.getElementById('admin-modal').style.display = 'none'; }
 
-// ЗАПУСК ИЗ БЕЗОПАСНОГО ИСТОЧНИКА
-initApplication();
+// Запускаем всё напрямую, без ожидания ответа сервера!
+checkSession();
+loadMatches();
+setInterval(loadMatches, 30000);
