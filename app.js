@@ -3,8 +3,6 @@ const API_URL = "https://mlb-ai-server.onrender.com";
 // === ПОДКЛЮЧЕНИЕ К ТВОЕЙ БАЗЕ SUPABASE ===
 const SUPABASE_URL = "https://fnuzgypznyzcphewmjdl.supabase.co"; 
 const SUPABASE_ANON_KEY = "sb_publishable_QihCry4fW9xq7S9cGJWCDg_TmUk46wP";
-
-// ИСПРАВЛЕНА ОШИБКА ЗДЕСЬ: переименовали переменную в supabaseClient
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
@@ -28,7 +26,6 @@ async function checkSession() {
     }
 }
 
-// ОТСЛЕЖИВАНИЕ ВХОДА/ВЫХОДА В РЕАЛЬНОМ ВРЕМЕНИ
 supabaseClient.auth.onAuthStateChange((event, session) => {
     currentUser = session ? session.user : null;
     renderHeader();
@@ -51,31 +48,98 @@ function renderHeader() {
     let headerButtons = '';
     if (isBoss) {
         headerButtons += `
-            <button onclick="publishBoard()" style="background-color: #10B981; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px; box-shadow: 0 2px 4px rgba(16,185,129,0.3);">🚀 Publish Board</button>
+            <button onclick="publishBoard()" style="background-color: #10B981; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">🚀 Publish Board</button>
             <button id="sync-stats-btn" onclick="loadSchedule()" style="background-color: #D50032; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">Load DB</button>
         `;
     }
 
     if (currentUser) {
-        const name = currentUser.email.split('@')[0];
+        const name = currentUser.email ? currentUser.email.split('@')[0] : "User";
         headerButtons += `<button onclick="signOut()" style="background-color: #002D72; color: white; border: 1px solid #ffffff; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">👑 VIP: ${name} (Exit)</button>`;
     } else {
-        headerButtons += `<button onclick="signInWithGoogle()" style="background-color: #E5E7EB; color: #111827; border: 1px solid #D1D5DB; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">Sign In</button>`;
+        headerButtons += `<button onclick="openAuthModal()" style="background-color: #E5E7EB; color: #111827; border: 1px solid #D1D5DB; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">Sign In</button>`;
     }
 
     buttonsContainer.innerHTML = headerButtons;
 }
 
-// ФУНКЦИИ ВХОДА И ВЫХОДА
-async function signInWithGoogle() {
+async function signOut() {
+    await supabaseClient.auth.signOut();
+}
+
+// === НОВОЕ ОКНО АВТОРИЗАЦИИ ===
+const authModalHtml = `
+    <div id="auth-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; z-index:2000; backdrop-filter: blur(4px);">
+        <div style="background:#FFFFFF; width:90%; max-width:400px; border-radius:16px; padding:30px; box-shadow: 0 15px 35px rgba(0,0,0,0.2); position:relative; text-align:center;">
+            <button onclick="closeAuthModal()" style="position:absolute; top:15px; right:15px; background:none; border:none; font-size:24px; color:#6B7280; cursor:pointer;">&times;</button>
+            <h2 style="margin: 0 0 20px 0; color:#002D72; font-weight:800;">JOIN VIP CLUB</h2>
+            
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <input type="email" id="auth-email" placeholder="Email Address" style="padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px; outline:none; background:#F9FAFB;">
+                <input type="password" id="auth-password" placeholder="Password (min. 6 chars)" style="padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px; outline:none; background:#F9FAFB;">
+                <div style="display:flex; gap:10px; margin-top:5px;">
+                    <button onclick="signInWithEmail()" style="flex:1; padding:12px; background:#002D72; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Login</button>
+                    <button onclick="signUpWithEmail()" style="flex:1; padding:12px; background:#D50032; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Register</button>
+                </div>
+            </div>
+
+            <div style="margin: 20px 0; display:flex; align-items:center; color:#9CA3AF; font-size:12px; text-transform:uppercase;">
+                <div style="flex:1; height:1px; background:#E5E7EB;"></div>
+                <span style="margin:0 10px;">or continue with</span>
+                <div style="flex:1; height:1px; background:#E5E7EB;"></div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <button onclick="signInWithProvider('google')" style="padding:12px; background:#FFFFFF; color:#374151; border:1px solid #D1D5DB; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
+                    🔴 Google
+                </button>
+                <button onclick="signInWithProvider('discord')" style="padding:12px; background:#5865F2; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
+                    🟣 Discord
+                </button>
+                <button onclick="signInWithProvider('twitter')" style="padding:12px; background:#000000; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
+                    ✖️ X (Twitter)
+                </button>
+                <button onclick="signInWithProvider('facebook')" style="padding:12px; background:#1877F2; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
+                    🔵 Meta
+                </button>
+            </div>
+        </div>
+    </div>
+`;
+document.body.insertAdjacentHTML('beforeend', authModalHtml);
+
+function openAuthModal() { document.getElementById('auth-modal').style.display = 'flex'; }
+function closeAuthModal() { document.getElementById('auth-modal').style.display = 'none'; }
+
+// ЛОГИКА ВХОДА
+async function signInWithProvider(provider) {
     await supabaseClient.auth.signInWithOAuth({
-        provider: 'google',
+        provider: provider,
         options: { redirectTo: window.location.origin }
     });
 }
 
-async function signOut() {
-    await supabaseClient.auth.signOut();
+async function signUpWithEmail() {
+    const email = document.getElementById('auth-email').value;
+    const password = document.getElementById('auth-password').value;
+    if (!email || password.length < 6) return alert("Enter a valid email and password (min 6 chars).");
+    
+    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+    if (error) alert("Error: " + error.message);
+    else {
+        alert("Registration successful! You are now logged in.");
+        closeAuthModal();
+    }
+}
+
+async function signInWithEmail() {
+    const email = document.getElementById('auth-email').value;
+    const password = document.getElementById('auth-password').value;
+    if (!email || !password) return alert("Please enter email and password.");
+    
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) alert("Login Error: " + error.message);
+    else closeAuthModal();
 }
 
 // ЕДИНОЕ ОКНО ПРОГНОЗА
@@ -210,15 +274,13 @@ function openUnifiedModal(matchId, awayTeam, homeTeam) {
     });
 }
 
-// УПРАВЛЕНИЕ ЧАТОМ ЧЕРЕЗ АВТОРИЗАЦИЮ
 function renderChatControls() {
     const controls = document.getElementById('chat-controls');
     if (!currentUser) {
         controls.innerHTML = `
             <input type="text" disabled placeholder="🔒 Locked. VIP Subscription Required." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#F3F4F6; color:#6B7280;">
-            <button onclick="signInWithGoogle()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:8px;">
-                <img src="https://www.svgrepo.com/show/475656/google-color.svg" style="width:16px; height:16px; background:white; border-radius:50%; padding:2px;">
-                Unlock with Google
+            <button onclick="openAuthModal()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:8px;">
+                Unlock Chat
             </button>`;
     } else if (messagesLeft <= 0) {
         controls.innerHTML = `<input type="text" disabled placeholder="⏳ Daily limit reached (5/5). Come back tomorrow!" style="flex-grow:1; padding:12px; border:1px solid #F59E0B; border-radius:8px; background:#FEF3C7; color:#B45309;">`;
