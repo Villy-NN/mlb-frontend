@@ -127,7 +127,8 @@ async function signUpWithEmail() {
     const { data, error } = await supabaseClient.auth.signUp({ email, password });
     if (error) alert("Error: " + error.message);
     else {
-        alert("Registration successful! You are now logged in.");
+        // ИСПРАВЛЕННЫЙ ТЕКСТ ЗДЕСЬ
+        alert("Success! Please check your email inbox to confirm your address and login.");
         closeAuthModal();
     }
 }
