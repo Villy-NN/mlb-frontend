@@ -1,21 +1,43 @@
 const API_URL = "https://mlb-ai-server.onrender.com";
 
-// === ПОДКЛЮЧЕНИЕ К ТВОЕЙ БАЗЕ SUPABASE ===
-const SUPABASE_URL = "https://fnuzgypznyzcphewmjdl.supabase.co"; 
-const SUPABASE_ANON_KEY = "sb_publishable_QihCry4fW9xq7S9cGJWCDg_TmUk46wP";
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
+let supabaseClient = null; // Инициализируется динамически без хардкода!
 let currentUser = null;
 let isUserVIP = false;
-let allMatches = []; // Локальное хранилище матчей
+let allMatches = []; 
 let currentChatMatchId = null;
 let currentBoxScoreMatchId = null; 
 let currentAdminMatchId = null;
 
 const isBoss = new URLSearchParams(window.location.search).get('boss') === '1';
 
+// БЕЗОПАСНАЯ СВЕРХУМНАЯ ИНИЦИАЛИЗАЦИЯ SUPABASE
+async function initApplication() {
+    try {
+        // Запрашиваем конфигурацию у нашего защищенного бэкенда
+        const response = await fetch(`${API_URL}/config`);
+        const config = await response.json();
+        
+        if (!config.supabase_url || !config.supabase_anon_key) {
+            console.error("Supabase config variables are missing on the Render server!");
+            return;
+        }
+        
+        // Создаем клиент на лету
+        supabaseClient = window.supabase.createClient(config.supabase_url, config.supabase_anon_key);
+        
+        // Запускаем стандартные процессы сессии и матчей
+        await checkSession();
+        await loadMatches(); 
+        setInterval(loadMatches, 30000); // Автообновление каждые 30 сек
+        
+    } catch (e) {
+        console.error("Initialization error:", e);
+    }
+}
+
 // ПРОВЕРКА СЕССИИ И ОПЛАТЫ
 async function checkSession() {
+    if (!supabaseClient) return;
     const { data: { session } } = await supabaseClient.auth.getSession();
     currentUser = session ? session.user : null;
     
@@ -34,15 +56,6 @@ async function checkSession() {
         renderChatControls();
     }
 }
-
-supabaseClient.auth.onAuthStateChange((event, session) => {
-    currentUser = session ? session.user : null;
-    checkVipStatus();
-    renderHeader();
-    if (document.getElementById('forecast-modal') && document.getElementById('forecast-modal').style.display === 'flex') {
-        renderChatControls();
-    }
-});
 
 function checkVipStatus() {
     if (!currentUser) { isUserVIP = false; return; }
@@ -76,7 +89,7 @@ function renderHeader() {
     buttonsContainer.innerHTML = headerButtons;
 }
 
-async function signOut() { await supabaseClient.auth.signOut(); }
+async function signOut() { if (supabaseClient) { await supabaseClient.auth.signOut(); localStorage.removeItem('vip_status_' + currentUser.email); location.reload(); } }
 
 // === ОКНО АВТОРИЗАЦИИ ===
 const authModalHtml = `
@@ -106,9 +119,9 @@ document.body.insertAdjacentHTML('beforeend', authModalHtml);
 
 function openAuthModal() { document.getElementById('auth-modal').style.display = 'flex'; }
 function closeAuthModal() { document.getElementById('auth-modal').style.display = 'none'; }
-async function signInWithProvider(provider) { await supabaseClient.auth.signInWithOAuth({ provider: provider, options: { redirectTo: window.location.origin } }); }
-async function signUpWithEmail() { const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; if (!email || password.length < 6) return alert("Enter valid email/password."); const { data, error } = await supabaseClient.auth.signUp({ email, password }); if (error) alert("Error: " + error.message); else { alert("Success! Check email if required."); closeAuthModal(); } }
-async function signInWithEmail() { const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) alert("Error: " + error.message); else closeAuthModal(); }
+async function signInWithProvider(provider) { if (supabaseClient) await supabaseClient.auth.signInWithOAuth({ provider: provider, options: { redirectTo: window.location.origin } }); }
+async function signUpWithEmail() { if (!supabaseClient) return; const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; if (!email || password.length < 6) return alert("Enter valid email/password."); const { data, error } = await supabaseClient.auth.signUp({ email, password }); if (error) alert("Error: " + error.message); else { alert("Success! Check email if required."); closeAuthModal(); } }
+async function signInWithEmail() { if (!supabaseClient) return; const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) alert("Error: " + error.message); else closeAuthModal(); }
 
 // === ЗАМОК ОПЛАТЫ (STRIPE) ===
 const paywallModalHtml = `
@@ -138,9 +151,9 @@ function openPaywallModal() { document.getElementById('paywall-modal').style.dis
 function closePaywallModal() { document.getElementById('paywall-modal').style.display = 'none'; }
 
 function processTestPayment() {
-    const stripeUrl = "https://buy.stripe.com/test_dRm7sE0dfcL81fz32593y00";
+    const stripeUrl = "https://buy.stripe.com/test_dRm7sE0dfcL81fz32593y00"; // ССЫЛКА ОСТАЕТСЯ НА ВЕК С НАМИ!
     const btn = document.getElementById('stripe-test-btn');
-    btn.innerHTML = "Redirecting..."; btn.style.background = "#9CA3AF";
+    btn.innerHTML = "Redirecting Securely..."; btn.style.background = "#9CA3AF";
     window.location.href = stripeUrl;
 }
 
@@ -180,10 +193,7 @@ function openMatchModal(matchId) {
     document.getElementById('match-modal').style.display = 'flex';
     updateBoxScoreModalData(matchId);
 }
-function closeMatchModal() { 
-    document.getElementById('match-modal').style.display = 'none'; 
-    currentBoxScoreMatchId = null;
-}
+function closeMatchModal() { document.getElementById('match-modal').style.display = 'none'; currentBoxScoreMatchId = null; }
 
 function updateBoxScoreModalData(matchId) {
     const match = allMatches.find(m => m.id === matchId);
@@ -195,10 +205,8 @@ function updateBoxScoreModalData(matchId) {
     let l = match.linescore;
     if (!l) {
         l = {
-            away_innings: ["-","-","-","-","-","-","-","-","-"],
-            home_innings: ["-","-","-","-","-","-","-","-","-"],
-            away_totals: {r:"-", h:"-", e:"-"},
-            home_totals: {r:"-", h:"-", e:"-"}
+            away_innings: ["-","-","-","-","-","-","-","-","-"], home_innings: ["-","-","-","-","-","-","-","-","-"],
+            away_totals: {r:"-", h:"-", e:"-"}, home_totals: {r:"-", h:"-", e:"-"}
         };
     }
 
@@ -253,12 +261,8 @@ function openForecastModal(matchId) {
     document.getElementById('forecast-modal').style.display = 'flex';
     renderChatControls();
 }
-function closeForecastModal() { 
-    document.getElementById('forecast-modal').style.display = 'none'; 
-    currentChatMatchId = null;
-}
+function closeForecastModal() { document.getElementById('forecast-modal').style.display = 'none'; currentChatMatchId = null; }
 
-// === БЕЗЛИМИТНЫЙ ЧАТ ДЛЯ VIP ===
 function renderChatControls() {
     const controls = document.getElementById('chat-controls');
     if (!currentUser) {
@@ -266,7 +270,6 @@ function renderChatControls() {
     } else if (!isUserVIP) {
         controls.innerHTML = `<input type="text" disabled placeholder="🔒 VIP Required to ask Buddy questions." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#FEF3C7; color:#B45309;"><button onclick="openPaywallModal()" style="background:#10B981; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.3);">💎 Upgrade to VIP</button>`;
     } else {
-        // Убрали лимит (5/5). Теперь просто кнопка Send!
         controls.innerHTML = `<input type="text" id="chat-user-input" placeholder="Ask Buddy about odds or players..." style="flex-grow:1; padding:12px; border:1px solid #D1D5DB; border-radius:8px; background:#FFFFFF; color:#111827; outline:none;"><button onclick="sendChatMessage()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Send</button>`;
         document.getElementById('chat-user-input').addEventListener('keydown', e => { if (e.key === "Enter") sendChatMessage(); });
     }
@@ -291,19 +294,14 @@ document.body.insertAdjacentHTML('beforeend', adminModalHtml);
 async function loadSchedule() { try { await fetch(`${API_URL}/fetch-schedule`); await loadMatches(); } catch (e) {} }
 async function publishBoard() { if(confirm("GO LIVE?")) { await fetch(`${API_URL}/publish-board`, {method: 'POST'}); loadMatches(); } }
 
-// === ЗАГРУЗКА И УМНАЯ СОРТИРОВКА ===
 async function loadMatches() {
     const container = document.getElementById('matches-container');
-    
-    if (allMatches.length === 0) {
-        container.innerHTML = '<div class="loading-text">Loading premium board...</div>';
-    }
+    if (allMatches.length === 0) container.innerHTML = '<div class="loading-text">Loading premium board...</div>';
     
     try {
         const response = await fetch(isBoss ? `${API_URL}/matches?boss=1` : `${API_URL}/matches?boss=0`);
         allMatches = await response.json();
         
-        // --- УМНАЯ СОРТИРОВКА МАТЧЕЙ ---
         allMatches.sort((a, b) => {
             const getWeight = (st) => {
                 if (!st) return 2;
@@ -312,12 +310,10 @@ async function loadMatches() {
                 if (s.includes('final') || s.includes('game over') || s.includes('completed')) return 3;
                 return 2; 
             };
-            let weightA = getWeight(a.status);
-            let weightB = getWeight(b.status);
+            let weightA = getWeight(a.status); let weightB = getWeight(b.status);
             if (weightA !== weightB) return weightA - weightB;
             return a.id.localeCompare(b.id);
         });
-        // ---------------------------------
 
         if (currentBoxScoreMatchId && document.getElementById('match-modal').style.display === 'flex') {
             updateBoxScoreModalData(currentBoxScoreMatchId);
@@ -330,7 +326,6 @@ async function loadMatches() {
             const adminBtn = isBoss ? `<button onclick="openAdminPanel('${match.id}', '${match.away_team}', '${match.home_team}')" style="color:white; border:none; padding:8px 12px; font-weight:bold; cursor:pointer; margin-top:5px; background:#D50032; border-radius:8px;">⚙️ Admin</button>` : '';
             
             let scoreDisplay = `<span style="color:#6B7280; font-size:13px;">@</span>`;
-            
             if (match.status === "Final" || match.status === "Game Over" || (match.status && match.status.includes("Final"))) {
                 scoreDisplay = `<div style="font-weight: 800; font-size: 22px; color: #002D72; margin: 4px 0;">${match.score}</div><div style="color: #D50032; font-size: 11px; font-weight: 800;">FINAL</div>`;
             } else if ((match.status && match.status.includes("In Progress")) || match.status === "Live" || (match.status && match.status.includes("Warmup"))) {
@@ -358,19 +353,13 @@ async function loadMatches() {
             `;
             container.appendChild(card);
         });
-    } catch (e) { 
-        if (allMatches.length === 0) container.innerHTML = '<div class="loading-text" style="color:#D50032;">Server error.</div>'; 
-    }
+    } catch (e) { if (allMatches.length === 0) container.innerHTML = '<div class="loading-text" style="color:#D50032;">Server error.</div>'; }
 }
 
 async function sendChatMessage() {
-    if (!currentUser || !isUserVIP) return; // Убрали проверку на лимиты!
+    if (!currentUser || !isUserVIP) return; 
     const input = document.getElementById('chat-user-input'); const msg = input.value.trim(); if (!msg || !currentChatMatchId) return;
-    
-    appendMessageToChat("You", msg); 
-    input.value = ''; 
-    renderChatControls();
-    
+    appendMessageToChat("You", msg); input.value = ''; renderChatControls();
     const container = document.getElementById('chat-messages-container'); const loader = document.createElement('div'); loader.id = "chat-loading"; loader.innerHTML = "<em style='color:#6B7280; font-size: 14px;'>🧠 Crunching numbers...</em>"; container.appendChild(loader); scrollToBottom();
     try {
         const response = await fetch(`${API_URL}/matches/${currentChatMatchId}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg }) });
@@ -393,6 +382,5 @@ function openAdminPanel(matchId, awayTeam, homeTeam) { currentAdminMatchId = mat
 async function submitAdminUpdate() { if (document.getElementById('admin-password-field').value !== "admin123") return alert("Access Denied!"); document.getElementById('admin-submit-btn').innerText = "Uploading..."; try { await fetch(`${API_URL}/matches/${currentAdminMatchId}/admin-update`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ai_analysis: document.getElementById('admin-forecast-field').value, preview_text: document.getElementById('admin-stats-field').value, manual_pitchers: document.getElementById('admin-pitchers-field').value }) }); closeAdminModal(); loadMatches(); } catch (e) { alert("Error"); } document.getElementById('admin-submit-btn').innerText = "Save Draft"; }
 function closeAdminModal() { document.getElementById('admin-modal').style.display = 'none'; }
 
-checkSession();
-loadMatches(); 
-setInterval(loadMatches, 30000);
+// ЗАПУСК ИЗ БЕЗОПАСНОГО ИСТОЧНИКА
+initApplication();
