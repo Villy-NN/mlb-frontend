@@ -17,17 +17,15 @@ let messagesLeft = parseInt(localStorage.getItem(limitKey));
 
 const isBoss = new URLSearchParams(window.location.search).get('boss') === '1';
 
-// ПРОВЕРКА СЕССИИ, VIP СТАТУСА И ВОЗВРАТА ОТ STRIPE
+// ПРОВЕРКА СЕССИИ И ОПЛАТЫ
 async function checkSession() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     currentUser = session ? session.user : null;
     
-    // ЛОВИМ УСПЕШНУЮ ОПЛАТУ ОТ STRIPE
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('payment') === 'success' && currentUser) {
         localStorage.setItem('vip_status_' + currentUser.email, 'true');
         isUserVIP = true;
-        // Очищаем адресную строку от мусора
         window.history.replaceState({}, document.title, window.location.pathname);
         setTimeout(() => alert("💳 Payment Successful! Welcome to the VIP Club!"), 500);
     } else {
@@ -35,7 +33,7 @@ async function checkSession() {
     }
     
     renderHeader();
-    if (document.getElementById('unified-modal') && document.getElementById('unified-modal').style.display === 'flex') {
+    if (document.getElementById('forecast-modal') && document.getElementById('forecast-modal').style.display === 'flex') {
         renderChatControls();
     }
 }
@@ -44,7 +42,7 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
     currentUser = session ? session.user : null;
     checkVipStatus();
     renderHeader();
-    if (document.getElementById('unified-modal') && document.getElementById('unified-modal').style.display === 'flex') {
+    if (document.getElementById('forecast-modal') && document.getElementById('forecast-modal').style.display === 'flex') {
         renderChatControls();
     }
 });
@@ -115,24 +113,24 @@ async function signInWithProvider(provider) { await supabaseClient.auth.signInWi
 async function signUpWithEmail() { const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; if (!email || password.length < 6) return alert("Enter valid email/password."); const { data, error } = await supabaseClient.auth.signUp({ email, password }); if (error) alert("Error: " + error.message); else { alert("Success! Check email if required."); closeAuthModal(); } }
 async function signInWithEmail() { const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) alert("Error: " + error.message); else closeAuthModal(); }
 
-// === ЗАМОК ОПЛАТЫ ===
+// === ЗАМОК ОПЛАТЫ (PAYWALL) ===
 const paywallModalHtml = `
     <div id="paywall-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index:2500; backdrop-filter: blur(5px);">
         <div style="background:#FFFFFF; width:90%; max-width:450px; border-radius:16px; overflow:hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.3); position:relative;">
             <div style="background: #002D72; padding: 25px 20px; text-align: center; color: white;">
                 <button onclick="closePaywallModal()" style="position:absolute; top:15px; right:15px; background:none; border:none; font-size:24px; color:white; cursor:pointer;">&times;</button>
-                <h2 style="margin:0; font-weight:800; font-size:24px; text-transform:uppercase;">Unlock VIP Access</h2>
-                <p style="margin:10px 0 0 0; color:#93C5FD; font-size:14px;">Dominate the sportsbooks with Buddy AI</p>
+                <h2 style="margin:0; font-weight:800; font-size:24px; text-transform:uppercase;">Unlock Buddy AI Chat</h2>
+                <p style="margin:10px 0 0 0; color:#93C5FD; font-size:14px;">Get personal consulting and deep metrics</p>
             </div>
             <div style="padding: 30px 20px;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-weight:600; font-size:15px;"><span>✅ Direct Chat with AI</span><span style="color:#10B981;">Unlimited</span></div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-weight:600; font-size:15px;"><span>✅ Daily Premium Forecasts</span><span style="color:#10B981;">Included</span></div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:25px; font-weight:600; font-size:15px;"><span>✅ Live Odds Analysis</span><span style="color:#10B981;">Included</span></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-weight:600; font-size:15px;"><span>✅ Direct Line with Buddy AI</span><span style="color:#10B981;">Unlimited</span></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-weight:600; font-size:15px;"><span>✅ Live Odds Line Analysis</span><span style="color:#10B981;">Included</span></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:25px; font-weight:600; font-size:15px;"><span>✅ Pro Analytics & Trends</span><span style="color:#10B981;">Included</span></div>
                 <div style="text-align:center; font-size:32px; font-weight:800; color:#111827; margin-bottom:20px;">$29.99 <span style="font-size:14px; font-weight:normal; color:#6B7280;">/ month</span></div>
-                <button id="stripe-test-btn" onclick="processTestPayment()" style="width:100%; background:#635BFF; color:white; border:none; padding:15px; border-radius:8px; font-weight:bold; font-size:16px; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:10px; transition:0.2s;">
+                <button id="stripe-test-btn" onclick="processTestPayment()" style="width:100%; background:#635BFF; color:white; border:none; padding:15px; border-radius:8px; font-weight:bold; font-size:16px; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:10px;">
                     💳 Pay with Stripe
                 </button>
-                <div style="text-align:center; font-size:11px; color:#9CA3AF; margin-top:15px;">🔒 Secured by Stripe. You can cancel anytime.</div>
+                <div style="text-align:center; font-size:11px; color:#9CA3AF; margin-top:15px;">🔒 Secured by Stripe. Cancel anytime.</div>
             </div>
         </div>
     </div>
@@ -142,39 +140,139 @@ document.body.insertAdjacentHTML('beforeend', paywallModalHtml);
 function openPaywallModal() { document.getElementById('paywall-modal').style.display = 'flex'; }
 function closePaywallModal() { document.getElementById('paywall-modal').style.display = 'none'; }
 
-// ПЕРЕХОД НА НАСТОЯЩИЙ STRIPE
 function processTestPayment() {
-    // ВСТАВЬ СВОЮ ССЫЛКУ НИЖЕ ВМЕСТО РУССКОГО ТЕКСТА
+    // ⚠️ ВАЖНО: ВСТАВЬ СЮДА СВОЮ ССЫЛКУ STRIPE ⚠️
     const stripeUrl = "https://buy.stripe.com/test_dRm7sE0dfcL81fz32593y00";
     
     if (stripeUrl.includes("ВСТАВЬ")) {
-        alert("Тренер, ты забыл вставить ссылку Stripe в код на строке 121!");
+        alert("Тренер, вставь свою ссылку Stripe в код (строка 121)!");
         return;
     }
-    
     const btn = document.getElementById('stripe-test-btn');
-    btn.innerHTML = "Redirecting securely...";
-    btn.style.background = "#9CA3AF";
+    btn.innerHTML = "Redirecting..."; btn.style.background = "#9CA3AF";
     window.location.href = stripeUrl;
 }
 
-// ЕДИНОЕ ОКНО ПРОГНОЗА
-const unifiedModalHtml = `
-    <div id="unified-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:1000;">
-        <div style="background:#FFFFFF; width:95%; max-width:600px; height:85%; border-radius:16px; display:flex; flex-direction:column; overflow:hidden; position:relative; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
-            <div style="background: #002D72; color:white; padding:15px; font-weight:bold; display:flex; justify-content:space-between; align-items:center;"><span id="unified-modal-title" style="font-size: 18px; letter-spacing: 0.5px;">Match Center</span><button onclick="closeUnifiedModal()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">&times;</button></div>
-            <div id="unified-scroll-area" style="flex-grow:1; padding:20px; overflow-y:auto; display:flex; flex-direction:column; gap:20px; background:#F9FAFB;">
-                <div style="background:#FFFFFF; border-left: 4px solid #D50032; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);"><h4 style="margin:0 0 10px 0; color:#002D72; text-transform:uppercase; font-size:14px;">Official Forecast</h4><div id="unified-forecast-text" style="color:#111827; font-size:15px; line-height:1.6;">Loading...</div></div>
+// === НОВОЕ ОКНО: MATCH CENTER (ИННИНГИ) ===
+const matchCenterModalHtml = `
+    <div id="match-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:1000;">
+        <div style="background:#FFFFFF; width:95%; max-width:650px; border-radius:16px; display:flex; flex-direction:column; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding:20px; gap:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #E5E7EB; padding-bottom:10px;">
+                <h3 id="match-modal-title" style="margin:0; color:#002D72; font-size:20px; font-weight:800;">LIVE SCOREBOX</h3>
+                <button onclick="closeMatchModal()" style="background:none; border:none; color:#6B7280; font-size:28px; cursor:pointer;">&times;</button>
+            </div>
+            
+            <div style="overflow-x:auto; background:#F3F4F6; padding:15px; border-radius:12px; border:1px solid #E5E7EB;">
+                <table style="width:100%; border-collapse:collapse; text-align:center; font-family:monospace; font-size:14px;">
+                    <thead>
+                        <tr style="color:#6B7280; font-weight:bold; border-bottom:1px solid #D1D5DB;">
+                            <th style="text-align:left; padding:8px; font-family:sans-serif; width:120px;">Teams</th>
+                            <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th>
+                            <th style="color:#002D72; font-weight:900; padding-left:10px;">R</th><th style="color:#4B5563;">H</th><th style="color:#4B5563;">E</th>
+                        </tr>
+                    </thead>
+                    <tbody style="font-weight:bold; color:#111827;">
+                        <tr id="linescore-away"></tr><tr id="linescore-home"></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="background:#F9FAFB; border-left: 4px solid #D50032; padding: 15px; border-radius: 8px;">
+                <h4 style="margin:0 0 5px 0; color:#002D72; text-transform:uppercase; font-size:12px; letter-spacing:1px;">Free Match Info</h4>
+                <div id="match-modal-pitchers" style="font-size:14px; color:#4B5563;"></div>
+            </div>
+        </div>
+    </div>
+`;
+document.body.insertAdjacentHTML('beforeend', matchCenterModalHtml);
+
+function openMatchModal(matchId, awayTeam, homeTeam, pitchers) {
+    document.getElementById('match-modal-title').innerText = `${awayTeam} @ ${homeTeam}`;
+    document.getElementById('match-modal-pitchers').innerText = pitchers ? "⚾ Pitchers: " + pitchers : "⚾ Pitchers: TBA";
+    
+    // Заглушка иннингов (пока не подключим Python сервер)
+    let awayBox = `<td style="text-align:left; font-family:sans-serif; padding:8px 0;">${awayTeam.substring(0,3).toUpperCase()}</td>`;
+    let homeBox = `<td style="text-align:left; font-family:sans-serif; padding:8px 0;">${homeTeam.substring(0,3).toUpperCase()}</td>`;
+    for(let i=1; i<=9; i++) { awayBox += `<td>-</td>`; homeBox += `<td>-</td>`; }
+    awayBox += `<td style="color:#002D72; font-weight:900; padding-left:10px;">-</td><td>-</td><td>-</td>`;
+    homeBox += `<td style="color:#002D72; font-weight:900; padding-left:10px;">-</td><td>-</td><td>-</td>`;
+    
+    document.getElementById('linescore-away').innerHTML = awayBox;
+    document.getElementById('linescore-home').innerHTML = homeBox;
+    document.getElementById('match-modal').style.display = 'flex';
+}
+function closeMatchModal() { document.getElementById('match-modal').style.display = 'none'; }
+
+
+// === ОКНО ПРОГНОЗА И ЧАТА (ФРИ ПРОГНОЗ + ПЕЙВОЛ НА ЧАТ) ===
+const forecastModalHtml = `
+    <div id="forecast-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:1000;">
+        <div style="background:#FFFFFF; width:95%; max-width:600px; height:85%; border-radius:16px; display:flex; flex-direction:column; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+            <div style="background: #002D72; color:white; padding:15px; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
+                <span id="forecast-modal-title" style="font-size: 18px; letter-spacing: 0.5px;">Official Forecast & Chat</span>
+                <button onclick="closeForecastModal()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">&times;</button>
+            </div>
+            <div id="forecast-scroll-area" style="flex-grow:1; padding:20px; overflow-y:auto; display:flex; flex-direction:column; gap:20px; background:#F9FAFB;">
+                
+                <!-- ЭТА ЧАСТЬ ОТКРЫТА ДЛЯ ВСЕХ -->
+                <div style="background:#FFFFFF; border-left: 4px solid #10B981; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                    <h4 style="margin:0 0 10px 0; color:#10B981; text-transform:uppercase; font-size:14px; display:flex; justify-content:space-between;">
+                        <span>Free Daily Forecast</span>
+                        <span style="font-size:11px; color:#6B7280;">Unlocked 🔓</span>
+                    </h4>
+                    <div id="forecast-text-content" style="color:#111827; font-size:15px; line-height:1.6;">Loading analysis...</div>
+                </div>
+
+                <!-- ЭТА ЧАСТЬ - ЧАТ -->
                 <div style="text-align: center; color: #6B7280; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin-top: 10px;">Live VIP Discussion</div>
                 <div id="chat-messages-container" style="display:flex; flex-direction:column; gap:12px;"></div>
             </div>
+            
+            <!-- ПАНЕЛЬ ВВОДА С ЗАМКОМ -->
             <div id="chat-controls" style="padding:15px; border-top:1px solid #E5E7EB; background:#FFFFFF; display:flex; gap:10px;"></div>
         </div>
     </div>
 `;
-document.body.insertAdjacentHTML('beforeend', unifiedModalHtml);
+document.body.insertAdjacentHTML('beforeend', forecastModalHtml);
 
-// АДМИН ПАНЕЛЬ
+function openForecastModal(matchId, awayTeam, homeTeam) {
+    currentChatMatchId = matchId;
+    document.getElementById('forecast-modal-title').innerText = `${awayTeam} @ ${homeTeam}`;
+    document.getElementById('forecast-modal').style.display = 'flex';
+    
+    // Блокируем или открываем поле ввода
+    renderChatControls();
+    
+    const forecastContainer = document.getElementById('forecast-text-content');
+    forecastContainer.innerHTML = '<em style="color:#6B7280;">Loading forecast...</em>';
+    
+    fetch(`${API_URL}/matches${isBoss ? '?boss=1' : '?boss=0'}`).then(r => r.json()).then(matches => {
+        const match = matches.find(m => m.id === matchId);
+        if (match) {
+            forecastContainer.innerHTML = match.ai_analysis ? match.ai_analysis.replace(/\n/g, '<br>') : `<span style="color:#6B7280; font-style:italic;">Forecast not published yet.</span>`;
+            document.getElementById('chat-messages-container').innerHTML = '';
+            // Загружаем прошлые сообщения, если они есть (свои и бота)
+            if (match.chat_history) match.chat_history.forEach(msg => appendMessageToChat(msg.role === "user" ? "You" : "Buddy", msg.text));
+        }
+    });
+}
+function closeForecastModal() { document.getElementById('forecast-modal').style.display = 'none'; }
+
+function renderChatControls() {
+    const controls = document.getElementById('chat-controls');
+    if (!currentUser) {
+        controls.innerHTML = `<input type="text" disabled placeholder="🔒 Locked. Please sign in to chat." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#F3F4F6; color:#6B7280;"><button onclick="openAuthModal()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Sign In</button>`;
+    } else if (!isUserVIP) {
+        controls.innerHTML = `<input type="text" disabled placeholder="🔒 VIP Required to ask Buddy questions." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#FEF3C7; color:#B45309;"><button onclick="openPaywallModal()" style="background:#10B981; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.3);">💎 Upgrade to VIP</button>`;
+    } else if (messagesLeft <= 0) {
+        controls.innerHTML = `<input type="text" disabled placeholder="⏳ Daily limit reached (5/5)." style="flex-grow:1; padding:12px; border:1px solid #F59E0B; border-radius:8px; background:#FEF3C7; color:#B45309;">`;
+    } else {
+        controls.innerHTML = `<input type="text" id="chat-user-input" placeholder="Ask Buddy about odds or players..." style="flex-grow:1; padding:12px; border:1px solid #D1D5DB; border-radius:8px; background:#FFFFFF; color:#111827; outline:none;"><button onclick="sendChatMessage()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Send (${messagesLeft})</button>`;
+        document.getElementById('chat-user-input').addEventListener('keydown', e => { if (e.key === "Enter") sendChatMessage(); });
+    }
+}
+
+// === АДМИН ПАНЕЛЬ И ЗАГРУЗКА МАТЧЕЙ ===
 const adminModalHtml = `
     <div id="admin-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:1001;">
         <div style="background:#FFFFFF; width:95%; max-width:550px; border-radius:12px; border-top: 4px solid #D50032; display:flex; flex-direction:column; padding:20px; gap:12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
@@ -192,9 +290,10 @@ document.body.insertAdjacentHTML('beforeend', adminModalHtml);
 
 async function loadSchedule() { try { await fetch(`${API_URL}/fetch-schedule`); await loadMatches(); } catch (e) {} }
 async function publishBoard() { if(confirm("GO LIVE?")) { await fetch(`${API_URL}/publish-board`, {method: 'POST'}); loadMatches(); } }
+
 async function loadMatches() {
     const container = document.getElementById('matches-container');
-    container.innerHTML = '<div class="loading-text">Loading matches...</div>';
+    container.innerHTML = '<div class="loading-text">Loading premium board...</div>';
     try {
         const response = await fetch(isBoss ? `${API_URL}/matches?boss=1` : `${API_URL}/matches?boss=0`);
         const matches = await response.json();
@@ -213,46 +312,22 @@ async function loadMatches() {
 
             card.innerHTML = `
                 <div style="flex-grow: 1; display:flex; flex-direction:column; justify-content:center;">
-                    <div class="team-names" style="display:flex; flex-direction:column; align-items:flex-start; line-height: 1.4;"><div style="display:flex; align-items:baseline; gap:6px;"><span>${match.away_team} ${draftTag}</span><span style="font-size:13px; color:#6B7280;">(${match.away_record || '-'})</span></div><div style="margin: 4px 0;">${scoreDisplay}</div><div style="display:flex; align-items:baseline; gap:6px;"><span>${match.home_team}</span><span style="font-size:13px; color:#6B7280;">(${match.home_record || '-'})</span></div></div>
+                    <div class="team-names" style="display:flex; flex-direction:column; align-items:flex-start; line-height: 1.4;">
+                        <div style="display:flex; align-items:baseline; gap:6px;"><span>${match.away_team} ${draftTag}</span><span style="font-size:13px; color:#6B7280;">(${match.away_record || '-'})</span></div>
+                        <div style="margin: 4px 0;">${scoreDisplay}</div>
+                        <div style="display:flex; align-items:baseline; gap:6px;"><span>${match.home_team}</span><span style="font-size:13px; color:#6B7280;">(${match.home_record || '-'})</span></div>
+                    </div>
                     ${pitchersHtml}
                 </div>
-                <div class="btn-group" style="display: flex; flex-direction:column; justify-content:center; margin-left: 15px;">
-                    <button class="analyze-btn" onclick="openUnifiedModal('${match.id}', '${match.away_team}', '${match.home_team}')" style="color:white; border:none; padding:10px 12px; border-radius:8px; font-weight:bold; cursor:pointer;">Match Center</button>
+                <div class="btn-group" style="display: flex; flex-direction:column; justify-content:center; margin-left: 15px; gap:8px;">
+                    <button class="analyze-btn" onclick="openMatchModal('${match.id}', '${match.away_team}', '${match.home_team}', '${match.manual_pitchers || match.pitchers}')" style="color:#002D72; background:#E5E7EB!important; border:1px solid #002D72; padding:10px 12px; border-radius:8px; font-weight:bold; cursor:pointer;">📊 Box Score</button>
+                    <button class="analyze-btn" onclick="openForecastModal('${match.id}', '${match.away_team}', '${match.home_team}')" style="color:white; background:#002D72!important; border:none; padding:10px 12px; border-radius:8px; font-weight:bold; cursor:pointer;">📖 Forecast & Chat</button>
                     ${adminBtn}
                 </div>
             `;
             container.appendChild(card);
         });
     } catch (e) { container.innerHTML = '<div class="loading-text" style="color:#D50032;">Server error.</div>'; }
-}
-
-function openUnifiedModal(matchId, awayTeam, homeTeam) {
-    currentChatMatchId = matchId;
-    document.getElementById('unified-modal-title').innerText = `${awayTeam} @ ${homeTeam}`;
-    document.getElementById('unified-modal').style.display = 'flex';
-    renderChatControls();
-    fetch(`${API_URL}/matches${isBoss ? '?boss=1' : '?boss=0'}`).then(r => r.json()).then(matches => {
-        const match = matches.find(m => m.id === matchId);
-        if (match) {
-            document.getElementById('unified-forecast-text').innerHTML = match.ai_analysis ? match.ai_analysis.replace(/\n/g, '<br>') : `<span style="color:#6B7280; font-style:italic;">Forecast hidden/not ready.</span>`;
-            document.getElementById('chat-messages-container').innerHTML = '';
-            if (match.chat_history) match.chat_history.forEach(msg => appendMessageToChat(msg.role === "user" ? "You" : "Buddy", msg.text));
-        }
-    });
-}
-
-function renderChatControls() {
-    const controls = document.getElementById('chat-controls');
-    if (!currentUser) {
-        controls.innerHTML = `<input type="text" disabled placeholder="🔒 Locked. Please sign in." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#F3F4F6; color:#6B7280;"><button onclick="openAuthModal()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Sign In</button>`;
-    } else if (!isUserVIP) {
-        controls.innerHTML = `<input type="text" disabled placeholder="🔒 Subscription Required to chat with AI." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#FEF3C7; color:#B45309;"><button onclick="openPaywallModal()" style="background:#10B981; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.3);">💎 Upgrade to VIP</button>`;
-    } else if (messagesLeft <= 0) {
-        controls.innerHTML = `<input type="text" disabled placeholder="⏳ Daily limit reached (5/5)." style="flex-grow:1; padding:12px; border:1px solid #F59E0B; border-radius:8px; background:#FEF3C7; color:#B45309;">`;
-    } else {
-        controls.innerHTML = `<input type="text" id="chat-user-input" placeholder="Ask Buddy about odds..." style="flex-grow:1; padding:12px; border:1px solid #D1D5DB; border-radius:8px; background:#FFFFFF; color:#111827; outline:none;"><button onclick="sendChatMessage()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Send (${messagesLeft})</button>`;
-        document.getElementById('chat-user-input').addEventListener('keydown', e => { if (e.key === "Enter") sendChatMessage(); });
-    }
 }
 
 async function sendChatMessage() {
@@ -275,14 +350,10 @@ function appendMessageToChat(sender, text) {
     msgDiv.innerHTML = `<strong style="color:${sender==='Buddy'?'#D50032':(sender==='You'?'#93C5FD':'#fff')}; font-size: 12px; text-transform: uppercase;">${sender}</strong><br><span style="margin-top:4px; display:inline-block;">${text.replace(/\n/g, '<br>')}</span>`;
     container.appendChild(msgDiv); scrollToBottom();
 }
-function scrollToBottom() { const scrollArea = document.getElementById('unified-scroll-area'); scrollArea.scrollTop = scrollArea.scrollHeight; }
-function closeUnifiedModal() { document.getElementById('unified-modal').style.display = 'none'; }
+function scrollToBottom() { const scrollArea = document.getElementById('forecast-scroll-area'); if(scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight; }
+
 function openAdminPanel(matchId, awayTeam, homeTeam) { currentAdminMatchId = matchId; document.getElementById('admin-modal').style.display = 'flex'; }
-async function submitAdminUpdate() {
-    if (document.getElementById('admin-password-field').value !== "admin123") return alert("Access Denied!"); document.getElementById('admin-submit-btn').innerText = "Uploading...";
-    try { await fetch(`${API_URL}/matches/${currentAdminMatchId}/admin-update`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ai_analysis: document.getElementById('admin-forecast-field').value, preview_text: document.getElementById('admin-stats-field').value, manual_pitchers: document.getElementById('admin-pitchers-field').value }) }); closeAdminModal(); loadMatches(); } catch (e) { alert("Error"); }
-    document.getElementById('admin-submit-btn').innerText = "Save Draft";
-}
+async function submitAdminUpdate() { if (document.getElementById('admin-password-field').value !== "admin123") return alert("Access Denied!"); document.getElementById('admin-submit-btn').innerText = "Uploading..."; try { await fetch(`${API_URL}/matches/${currentAdminMatchId}/admin-update`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ai_analysis: document.getElementById('admin-forecast-field').value, preview_text: document.getElementById('admin-stats-field').value, manual_pitchers: document.getElementById('admin-pitchers-field').value }) }); closeAdminModal(); loadMatches(); } catch (e) { alert("Error"); } document.getElementById('admin-submit-btn').innerText = "Save Draft"; }
 function closeAdminModal() { document.getElementById('admin-modal').style.display = 'none'; }
 
 checkSession();
