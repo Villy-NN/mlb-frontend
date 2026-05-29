@@ -143,7 +143,7 @@ function openPaywallModal() { document.getElementById('paywall-modal').style.dis
 function closePaywallModal() { document.getElementById('paywall-modal').style.display = 'none'; }
 
 function processTestPayment() {
-    // ТВОЯ ССЫЛКА STRIPE УЖЕ ЗДЕСЬ!
+    // ВСТАВЬ СВОЮ ССЫЛКУ STRIPE СЮДА!
     const stripeUrl = "https://buy.stripe.com/test_dRm7sE0dfcL81fz32593y00";
     const btn = document.getElementById('stripe-test-btn');
     btn.innerHTML = "Redirecting..."; btn.style.background = "#9CA3AF";
@@ -297,7 +297,7 @@ document.body.insertAdjacentHTML('beforeend', adminModalHtml);
 async function loadSchedule() { try { await fetch(`${API_URL}/fetch-schedule`); await loadMatches(); } catch (e) {} }
 async function publishBoard() { if(confirm("GO LIVE?")) { await fetch(`${API_URL}/publish-board`, {method: 'POST'}); loadMatches(); } }
 
-// === ЗАГРУЗКА И АВТО-ОБНОВЛЕНИЕ ===
+// === ЗАГРУЗКА И УМНАЯ СОРТИРОВКА ===
 async function loadMatches() {
     const container = document.getElementById('matches-container');
     
@@ -309,6 +309,30 @@ async function loadMatches() {
         const response = await fetch(isBoss ? `${API_URL}/matches?boss=1` : `${API_URL}/matches?boss=0`);
         allMatches = await response.json();
         
+        // --- УМНАЯ СОРТИРОВКА МАТЧЕЙ ---
+        allMatches.sort((a, b) => {
+            const getWeight = (st) => {
+                if (!st) return 2;
+                let s = st.toLowerCase();
+                // Высший приоритет (1) - идут прямо сейчас
+                if (s.includes('live') || s.includes('progress') || s.includes('warmup')) return 1;
+                // Низший приоритет (3) - уже закончились
+                if (s.includes('final') || s.includes('game over') || s.includes('completed')) return 3;
+                // Средний приоритет (2) - ожидаются (Scheduled, Preview, Delayed)
+                return 2; 
+            };
+            
+            let weightA = getWeight(a.status);
+            let weightB = getWeight(b.status);
+            
+            // Если статусы разные, ставим Live выше, Final ниже
+            if (weightA !== weightB) return weightA - weightB;
+            
+            // Если статусы одинаковые, сортируем по номеру матча (по времени)
+            return a.id.localeCompare(b.id);
+        });
+        // ---------------------------------
+
         if (currentBoxScoreMatchId && document.getElementById('match-modal').style.display === 'flex') {
             updateBoxScoreModalData(currentBoxScoreMatchId);
         }
@@ -321,7 +345,6 @@ async function loadMatches() {
             
             let scoreDisplay = `<span style="color:#6B7280; font-size:13px;">@</span>`;
             
-            // ИСПРАВЛЕННАЯ СТРОКА: || вместо or
             if (match.status === "Final" || match.status === "Game Over" || (match.status && match.status.includes("Final"))) {
                 scoreDisplay = `<div style="font-weight: 800; font-size: 22px; color: #002D72; margin: 4px 0;">${match.score}</div><div style="color: #D50032; font-size: 11px; font-weight: 800;">FINAL</div>`;
             } else if ((match.status && match.status.includes("In Progress")) || match.status === "Live" || (match.status && match.status.includes("Warmup"))) {
