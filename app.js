@@ -314,8 +314,16 @@ async function loadMatches() {
                 if (s.includes('final') || s.includes('game over') || s.includes('completed')) return 3;
                 return 2; 
             };
+            
+            // 1. Сначала сортируем по статусу: LIVE (1) -> Ожидаются (2) -> FINAL (3)
             let weightA = getWeight(a.status); let weightB = getWeight(b.status);
             if (weightA !== weightB) return weightA - weightB;
+            
+            // 2. Если статус одинаковый (например, два матча Scheduled), сортируем по времени начала
+            const timeA = a.game_datetime ? new Date(a.game_datetime).getTime() : 0;
+            const timeB = b.game_datetime ? new Date(b.game_datetime).getTime() : 0;
+            if (timeA && timeB && timeA !== timeB) return timeA - timeB;
+            
             return a.id.localeCompare(b.id);
         });
 
