@@ -233,7 +233,22 @@ async function openForecastModal(matchId) {
     if (!match) return;
 
     document.getElementById('forecast-modal-title').innerText = `${match.away_team} @ ${match.home_team}`;
-    document.getElementById('forecast-text-content').innerHTML = match.ai_analysis ? match.ai_analysis.replace(/\n/g, '<br>') : `<span style="color:#6B7280; font-style:italic;">Forecast not published yet.</span>`;
+    
+    // Продвинутый парсинг текста: абзацы и жирный шрифт
+    let formattedAnalysis = `<span style="color:#6B7280; font-style:italic;">Forecast not published yet.</span>`;
+    if (match.ai_analysis) {
+        formattedAnalysis = match.ai_analysis
+            // Делаем двойной перенос (пустую строку) между абзацами
+            .replace(/\n\n/g, '</p><p style="margin-bottom: 15px;">')
+            // Делаем одинарный перенос внутри абзаца
+            .replace(/\n/g, '<br>')
+            // Превращаем текст между звездочками в жирный: *текст* -> <strong>текст</strong>
+            .replace(/\*(.*?)\*/g, '<strong style="color: #002D72;">$1</strong>');
+            
+        formattedAnalysis = `<p style="margin-top: 0; margin-bottom: 15px;">${formattedAnalysis}</p>`;
+    }
+    
+    document.getElementById('forecast-text-content').innerHTML = formattedAnalysis;
     document.getElementById('chat-messages-container').innerHTML = '';
     
     document.getElementById('forecast-modal').style.display = 'flex';
