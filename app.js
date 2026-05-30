@@ -453,3 +453,57 @@ function closeAdminModal() {
 checkSession();
 loadMatches();
 setInterval(loadMatches, 30000);
+
+// === ЛОГИКА УСТАНОВКИ ПРИЛОЖЕНИЯ (PWA) ===
+let deferredPrompt;
+const installBanner = document.getElementById('pwa-install-banner');
+const installBtn = document.getElementById('pwa-install-btn');
+const iosModal = document.getElementById('ios-install-modal');
+
+// Определяем, с какого устройства зашли
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+// Проверяем, не открыт ли сайт уже как установленное приложение
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+if (!isStandalone) {
+    if (isIOS) {
+        // Для iPhone: показываем баннер, но кнопка открывает подсказку
+        setTimeout(() => { if (installBanner) installBanner.style.display = 'flex'; }, 2000);
+        
+        if (installBtn) {
+            installBtn.addEventListener('click', () => {
+                installBanner.style.display = 'none';
+                if (iosModal) iosModal.style.display = 'flex';
+            });
+        }
+    } else {
+        // Для Android: ловим системное событие установки
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Отменяем стандартную всплывашку браузера (чтобы показать нашу красивую)
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Показываем наш баннер через 2 секунды
+            setTimeout(() => { if (installBanner) installBanner.style.display = 'flex'; }, 2000);
+            
+            if (installBtn) {
+                installBtn.addEventListener('click', async () => {
+                    installBanner.style.display = 'none';
+                    // Вызываем системное окно Android
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                        console.log('App installed!');
+                    }
+                    deferredPrompt = null;
+                });
+            }
+        });
+    }
+}
+
+// Прячем баннер, если юзер успешно установил приложение
+window.addEventListener('appinstalled', () => {
+    if (installBanner) installBanner.style.display = 'none';
+    deferredPrompt = null;
+});
