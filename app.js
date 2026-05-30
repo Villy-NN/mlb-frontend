@@ -323,13 +323,10 @@ async function loadMatches() {
             updateBoxScoreModalData(currentBoxScoreMatchId);
         }
         
-        // Очищаем контейнер, НО оставляем статичную карточку установки, если она видна
-        const installCardHTML = document.getElementById('static-install-card').outerHTML;
-        container.innerHTML = installCardHTML;
+        // Исправлено: Просто полностью очищаем контейнер с матчами перед новой отрисовкой.
+        // Карточка установки находится выше в HTML-коде, поэтому она не сотрется и не продублируется.
+        container.innerHTML = '';
         
-        // Восстанавливаем элементы карточки после перезаписи
-        rebindInstallCard();
-
         allMatches.forEach(match => {
             const card = document.createElement('div'); card.className = 'match-card';
             const draftTag = (isBoss && !match.is_published) ? `<span style="background:#F59E0B; color:white; font-size:10px; padding:2px 6px; border-radius:4px; margin-left:10px;">DRAFT</span>` : '';
@@ -511,5 +508,6 @@ window.addEventListener('appinstalled', () => {
 
 // Запускаем всё напрямую!
 checkSession();
+rebindInstallCard();
 loadMatches();
 setInterval(loadMatches, 30000);
