@@ -1,6 +1,10 @@
 const API_URL = "https://mlb-ai-server.onrender.com";
 
-let supabaseClient = null; 
+// === ОФИЦИАЛЬНО ПУБЛИЧНЫЕ КЛЮЧИ SUPABASE (БЕЗОПАСНО) ===
+const SUPABASE_URL = "https://fnuzgypznyzcphewmjdl.supabase.co"; 
+const SUPABASE_ANON_KEY = "sb_publishable_QihCry4fW9xq7S9cGJWCDg_TmUk46wP";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 let currentUser = null;
 let isUserVIP = false;
 let allMatches = []; 
@@ -10,21 +14,7 @@ let currentAdminMatchId = null;
 
 const isBoss = new URLSearchParams(window.location.search).get('boss') === '1';
 
-async function initApplication() {
-    try {
-        const response = await fetch(`${API_URL}/config`);
-        const config = await response.json();
-        if (!config.supabase_url || !config.supabase_anon_key) {
-            console.error("Supabase config variables are missing on the Render server!");
-            return;
-        }
-        supabaseClient = window.supabase.createClient(config.supabase_url, config.supabase_anon_key);
-        await checkSession();
-        await loadMatches(); 
-        setInterval(loadMatches, 30000); 
-    } catch (e) { console.error("Initialization error:", e); }
-}
-
+// === СТАРТ ПРИЛОЖЕНИЯ МГНОВЕННО ===
 async function checkSession() {
     if (!supabaseClient) return;
     const { data: { session } } = await supabaseClient.auth.getSession();
@@ -239,7 +229,7 @@ async function openForecastModal(matchId) {
     document.getElementById('forecast-modal').style.display = 'flex';
     renderChatControls();
 
-    // ЗАГРУЖАЕМ СТРОГО ЛИЧНЫЙ ЧАТ!
+    // ЗАГРУЖАЕМ СТРОГО ЛИЧНЫЙ ЧАТ
     if (currentUser) {
         try {
             const response = await fetch(`${API_URL}/matches/${matchId}/chat/${currentUser.email}`);
@@ -326,55 +316,4 @@ async function loadMatches() {
 
             card.innerHTML = `
                 <div style="flex-grow: 1; display:flex; flex-direction:column; justify-content:center;">
-                    <div class="team-names" style="display:flex; flex-direction:column; align-items:flex-start; line-height: 1.4;">
-                        <div style="display:flex; align-items:baseline; gap:6px;"><span>${match.away_team} ${draftTag}</span><span style="font-size:13px; color:#6B7280;">(${match.away_record || '-'})</span></div>
-                        <div style="margin: 4px 0;">${scoreDisplay}</div>
-                        <div style="display:flex; align-items:baseline; gap:6px;"><span>${match.home_team}</span><span style="font-size:13px; color:#6B7280;">(${match.home_record || '-'})</span></div>
-                    </div>
-                    ${pitchersHtml}
-                </div>
-                <div class="btn-group" style="display: flex; flex-direction:column; justify-content:center; margin-left: 15px; gap:8px;">
-                    <button class="analyze-btn" onclick="openMatchModal('${match.id}')" style="color:#002D72; background:#E5E7EB!important; border:1px solid #002D72; padding:10px 12px; border-radius:8px; font-weight:bold; cursor:pointer;">📊 Box Score</button>
-                    <button class="analyze-btn" onclick="openForecastModal('${match.id}')" style="color:white; background:#002D72!important; border:none; padding:10px 12px; border-radius:8px; font-weight:bold; cursor:pointer;">📖 Forecast & Chat</button>
-                    ${adminBtn}
-                </div>
-            `;
-            container.appendChild(card);
-        });
-    } catch (e) { if (allMatches.length === 0) container.innerHTML = '<div class="loading-text" style="color:#D50032;">Server error.</div>'; }
-}
-
-async function sendChatMessage() {
-    if (!currentUser || !isUserVIP) return; 
-    const input = document.getElementById('chat-user-input'); const msg = input.value.trim(); if (!msg || !currentChatMatchId) return;
-    
-    appendMessageToChat("You", msg); input.value = ''; renderChatControls();
-    const container = document.getElementById('chat-messages-container'); const loader = document.createElement('div'); loader.id = "chat-loading"; loader.innerHTML = "<em style='color:#6B7280; font-size: 14px;'>🧠 Crunching numbers...</em>"; container.appendChild(loader); scrollToBottom();
-    
-    try {
-        const response = await fetch(`${API_URL}/matches/${currentChatMatchId}/chat`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            // ПЕРЕДАЕМ EMAIL, ЧТОБЫ БЭКЕНД ЗНАЛ, КОМУ ОТВЕЧАТЬ
-            body: JSON.stringify({ message: msg, user_id: currentUser.email }) 
-        });
-        const data = await response.json(); document.getElementById('chat-loading').remove();
-        if (response.ok) appendMessageToChat("Buddy", data.reply); else appendMessageToChat("Error", data.detail);
-    } catch (e) { document.getElementById('chat-loading')?.remove(); appendMessageToChat("Error", "Timeout."); }
-}
-
-function appendMessageToChat(sender, text) {
-    const container = document.getElementById('chat-messages-container'); const msgDiv = document.createElement('div');
-    if (sender === "You") msgDiv.style = "align-self:flex-end; background:#002D72; color:white; padding:12px 16px; border-radius:16px 16px 4px 16px; max-width:80%; font-size:14px;";
-    else if (sender === "Buddy") msgDiv.style = "align-self:flex-start; background:#FFFFFF; color:#111827; padding:12px 16px; border-radius:16px 16px 16px 4px; max-width:80%; font-size:14px; border-left:4px solid #D50032; box-shadow: 0 2px 4px rgba(0,0,0,0.05);";
-    else msgDiv.style = "align-self:center; background:#D50032; color:white; padding:8px 12px; border-radius:8px; font-size: 13px;";
-    msgDiv.innerHTML = `<strong style="color:${sender==='Buddy'?'#D50032':(sender==='You'?'#93C5FD':'#fff')}; font-size: 12px; text-transform: uppercase;">${sender}</strong><br><span style="margin-top:4px; display:inline-block;">${text.replace(/\n/g, '<br>')}</span>`;
-    container.appendChild(msgDiv); scrollToBottom();
-}
-function scrollToBottom() { const scrollArea = document.getElementById('forecast-scroll-area'); if(scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight; }
-
-function openAdminPanel(matchId, awayTeam, homeTeam) { currentAdminMatchId = matchId; document.getElementById('admin-modal').style.display = 'flex'; }
-async function submitAdminUpdate() { if (document.getElementById('admin-password-field').value !== "admin123") return alert("Access Denied!"); document.getElementById('admin-submit-btn').innerText = "Uploading..."; try { await fetch(`${API_URL}/matches/${currentAdminMatchId}/admin-update`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ai_analysis: document.getElementById('admin-forecast-field').value, preview_text: document.getElementById('admin-stats-field').value, manual_pitchers: document.getElementById('admin-pitchers-field').value }) }); closeAdminModal(); loadMatches(); } catch (e) { alert("Error"); } document.getElementById('admin-submit-btn').innerText = "Save Draft"; }
-function closeAdminModal() { document.getElementById('admin-modal').style.display = 'none'; }
-
-initApplication();
+                    <div class="team
