@@ -55,7 +55,7 @@ function renderHeader() {
     if (isBoss) {
         headerButtons += `
             <button onclick="publishBoard()" style="background-color: #10B981; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">🚀 Publish</button>
-            <button id="sync-stats-btn" onclick="loadSchedule()" style="background-color: #D50032; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">Load DB</button>
+            <button id="sync-stats-btn" onclick="forceSyncDB()" style="background-color: #D50032; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">Load DB</button>
         `;
     }
     if (currentUser) {
@@ -554,3 +554,16 @@ checkSession();
 rebindInstallCard();
 loadMatches();
 setInterval(loadMatches, 30000);
+
+// Функция для ручной синхронизации базы данных (Load DB)
+async function forceSyncDB() {
+    alert("⏳ Contacting MLB servers and updating Supabase... Please wait up to 10 seconds.");
+    try {
+        const response = await fetch("https://mlb-ai-server.onrender.com/fetch-schedule");
+        const data = await response.json();
+        alert("✅ Success: " + data.message);
+        location.reload(); // Перезагружаем страницу, чтобы показать новые матчи
+    } catch (error) {
+        alert("❌ Error syncing database: " + error);
+    }
+}
