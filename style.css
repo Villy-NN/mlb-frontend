@@ -10,7 +10,7 @@ body {
 
 #app-container {
     width: 100%;
-    max-width: 800px; /* Оптимальная ширина для чтения текста и десктопа */
+    max-width: 100%; /* Разрешаем растягиваться на весь браузер */
     min-height: 100vh;
     background-color: #f8f9fa;
     box-shadow: 0 0 20px rgba(0,0,0,0.1);
@@ -101,7 +101,7 @@ header {
 .modal-content {
     background: white;
     width: 100%;
-    max-width: 800px;
+    max-width: 100%; /* Окно чата тоже будет на весь экран */
     height: 75vh;
     border-radius: 20px 20px 0 0;
     padding: 24px;
