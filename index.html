@@ -2,103 +2,33 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
-    <title>BasePicks AI - MLB Quant</title>
+    <title>BasePicks AI | Advanced MLB Betting Picks & Predictions</title>
+
+    <meta name="description" content="Get the analytical edge in MLB betting. BasePicks AI provides advanced sabermetrics, VIP handicapping, and real-time AI predictions for American sports bettors.">
+    <meta name="keywords" content="MLB betting, baseball picks, AI sports betting, MLB predictions, handicapping, +EV betting, sports analytics">
+    <meta name="author" content="BasePicks AI">
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://basepicksai.com/">
+    <meta property="og:title" content="BasePicks AI | Advanced MLB Betting Picks">
+    <meta property="og:description" content="Unlock +EV baseball picks with our AI-driven quantitative analysis. Stop guessing, start investing.">
+    <meta property="og:image" content="https://basepicksai.com/icon.png">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="BasePicks AI | MLB Handicapping">
+    <meta name="twitter:description" content="Unlock +EV baseball picks with our AI-driven quantitative analysis.">
+    <meta name="twitter:image" content="https://basepicksai.com/icon.png">
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#002D72">
-    
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="BasePicks">
+    <link rel="icon" type="image/png" href="icon.png">
     <link rel="apple-touch-icon" href="icon.png">
+
+    <link rel="stylesheet" href="style.css">
+    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <style>
-        /* Бейсбольные цвета (MLB Navy & MLB Red) */
-        :root {
-            --primary: #002D72; 
-            --accent: #D50032; 
-            --bg: #F3F4F6;
-            --text: #111827;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 0;
-            /* Убираем дерганье при скролле на мобилках */
-            overscroll-behavior-y: none; 
-        }
-
-        /* Шапка приложения */
-        header {
-            background-color: var(--primary);
-            color: white;
-            padding: 15px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        header h1 {
-            margin: 0;
-            font-size: 22px;
-            font-weight: 900;
-            letter-spacing: -0.5px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        /* Центрируем основной контент для ПК, на мобилках будет на всю ширину */
-        main {
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 0 15px;
-            padding-bottom: 40px; /* Отступ снизу */
-        }
-
-        /* Дизайн карточек (содержимое генерируется в app.js) */
-        .match-card {
-            background: white;
-            border-radius: 16px;
-            padding: 18px 20px;
-            margin-bottom: 15px;
-            display: flex;
-            justify-content: space-between;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            border: 1px solid #E5E7EB;
-            transition: transform 0.1s ease-in-out;
-        }
-
-        .match-card:active {
-            transform: scale(0.98);
-        }
-
-        .loading-text {
-            text-align: center;
-            color: var(--primary);
-            font-weight: bold;
-            padding: 40px;
-            font-size: 16px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        /* Убираем синюю обводку кнопок при нажатии на смартфонах */
-        button, a {
-            -webkit-tap-highlight-color: transparent;
-        }
-    </style>
 </head>
 <body>
 
