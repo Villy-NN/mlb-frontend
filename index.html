@@ -2,39 +2,129 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    
+    <!-- Обязательно для PWA: правильный масштаб на экранах смартфонов -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Buddy AI: Baseball Picks</title>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <title>BasePicks AI - MLB Quant</title>
+
+    <!-- === PWA Settings (Превращаем сайт в приложение) === -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#002D72">
+    
+    <!-- Apple iOS Settings (Для работы на iPhone) -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="BasePicks">
+    <link rel="apple-touch-icon" href="icon.png">
+    <!-- ==================================================== -->
+
+    <!-- Официальная библиотека Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <style>
-        /* СВЕТЛЫЙ MLB ДИЗАЙН */
-        body { font-family: 'Montserrat', sans-serif; background-color: #F0F2F5; color: #111827; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; }
-        header { background: #002D72; width: 100%; padding: 15px 20px; box-sizing: border-box; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-bottom: 4px solid #D50032; position: sticky; top: 0; z-index: 100; }
-        .header-title { font-weight: 800; font-size: 22px; color: #ffffff; letter-spacing: 1px; text-transform: uppercase; }
-        .header-title span { color: #D50032; }
-        #matches-container { width: 100%; max-width: 600px; padding: 20px; box-sizing: border-box; }
-        .match-card { background-color: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: transform 0.2s ease, border-color 0.2s ease; }
-        .match-card:hover { transform: translateY(-2px); border-color: #002D72; box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
-        .team-names { font-size: 17px; font-weight: 600; line-height: 1.5; color: #111827; }
-        .pitchers-text { color: #4B5563 !important; font-size: 13px !important; margin-top: 8px; font-weight: 500; }
-        .btn-group { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
-        button { font-family: 'Montserrat', sans-serif; transition: all 0.2s ease; }
-        button:hover:not(:disabled) { filter: brightness(1.1); transform: scale(1.02); }
-        .analyze-btn { background: #002D72 !important; box-shadow: 0 2px 6px rgba(0, 45, 114, 0.3); }
-        .loading-text { text-align: center; font-weight: 600; color: #6B7280; margin-top: 50px; font-size: 16px; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+        /* Бейсбольные цвета (MLB Navy & MLB Red) */
+        :root {
+            --primary: #002D72; 
+            --accent: #D50032; 
+            --bg: #F3F4F6;
+            --text: #111827;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            /* Убираем дерганье при скролле на мобилках */
+            overscroll-behavior-y: none; 
+        }
+
+        /* Шапка приложения */
+        header {
+            background-color: var(--primary);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Центрируем основной контент для ПК, на мобилках будет на всю ширину */
+        main {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 15px;
+            padding-bottom: 40px; /* Отступ снизу */
+        }
+
+        /* Дизайн карточек (содержимое генерируется в app.js) */
+        .match-card {
+            background: white;
+            border-radius: 16px;
+            padding: 18px 20px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #E5E7EB;
+            transition: transform 0.1s ease-in-out;
+        }
+
+        .match-card:active {
+            transform: scale(0.98);
+        }
+
+        .loading-text {
+            text-align: center;
+            color: var(--primary);
+            font-weight: bold;
+            padding: 40px;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Убираем синюю обводку кнопок при нажатии на смартфонах */
+        button, a {
+            -webkit-tap-highlight-color: transparent;
+        }
     </style>
 </head>
 <body>
+
+    <!-- Шапка сайта -->
     <header>
-        <div class="header-title">Buddy AI: <span>Baseball Picks</span></div>
+        <h1>⚾ BasePicks <span style="color: #D50032;">AI</span></h1>
+        
+        <!-- Контейнер для кнопок (VIP, Login, Publish). Сюда их закидывает app.js -->
+        <div id="header-buttons-container" style="display: flex; align-items: center;"></div>
     </header>
 
-    <div id="matches-container"></div>
+    <!-- Сетка матчей -->
+    <main>
+        <div id="matches-container">
+            <div class="loading-text">Loading premium board...</div>
+        </div>
+    </main>
 
-    <!-- Библиотека Supabase (СТРОГО ОДИН РАЗ) -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <!-- Наш код (СТРОГО ОДИН РАЗ) -->
+    <!-- Наш главный скрипт с логикой (должен быть в самом низу) -->
     <script src="app.js"></script>
+
 </body>
 </html>
