@@ -458,7 +458,16 @@ function scrollToBottom() {
 
 function openAdminPanel(matchId, awayTeam, homeTeam) { 
     currentAdminMatchId = matchId; 
-    document.getElementById('admin-modal').style.display = 'flex'; 
+    
+    // Находим матч в базе
+    const match = allMatches.find(m => m.id === matchId);
+    
+    // Подгружаем сохраненные данные в поля админки, чтобы они не стирались!
+    document.getElementById('admin-pitchers-field').value = match ? (match.manual_pitchers || '') : '';
+    document.getElementById('admin-forecast-field').value = match ? (match.ai_analysis || '') : '';
+    document.getElementById('admin-stats-field').value = match ? (match.preview_text || '') : '';
+    
+    document.getElementById('admin-modal').style.display = 'flex';
 }
 
 async function submitAdminUpdate() { 
