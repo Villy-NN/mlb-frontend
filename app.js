@@ -338,7 +338,18 @@ async function loadMatches() {
             } else if ((match.status && match.status.includes("In Progress")) || match.status === "Live" || (match.status && match.status.includes("Warmup"))) {
                 scoreDisplay = `<div style="font-weight: 800; font-size: 22px; color: #10B981; margin: 4px 0;">${match.score}</div><div style="color: #10B981; font-size: 11px; font-weight: 800;">LIVE</div>`;
             } else {
-                scoreDisplay = `<div style="font-weight: 800; font-size: 14px; color: #6B7280; margin: 4px 0;">${match.status}</div>`;
+                // Пытаемся достать точное время матча и перевести в локальное
+                let localTime = match.status; 
+                const matchTime = match.game_datetime || match.game_date || match.datetime || match.time;
+                
+                if (matchTime) {
+                    try {
+                        const utcDate = new Date(matchTime);
+                        // Авто-конвертация в местное время (например, 19:30 или 7:30 PM)
+                        localTime = utcDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    } catch (e) {}
+                }
+                scoreDisplay = `<div style="font-weight: 800; font-size: 16px; color: #002D72; margin: 4px 0;">${localTime}</div><div style="color: #6B7280; font-size: 11px; font-weight: 800; letter-spacing: 0.5px;">LOCAL TIME</div>`;
             }
 
             const pitchersHtml = match.manual_pitchers || match.pitchers ? `<div class="pitchers-text" style="margin-top: 10px;">⚾ ${match.manual_pitchers || match.pitchers}</div>` : '';
