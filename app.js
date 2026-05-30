@@ -1,10 +1,6 @@
 const API_URL = "https://mlb-ai-server.onrender.com";
 
-// Ключи Supabase официально разрешено держать здесь (это публичный Anon Key)
-const SUPABASE_URL = "https://fnuzgypznyzcphewmjdl.supabase.co"; 
-const SUPABASE_ANON_KEY = "sb_publishable_QihCry4fW9xq7S9cGJWCDg_TmUk46wP";
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
+let supabaseClient = null; 
 let currentUser = null;
 let isUserVIP = false;
 let allMatches = []; 
@@ -14,7 +10,23 @@ let currentAdminMatchId = null;
 
 const isBoss = new URLSearchParams(window.location.search).get('boss') === '1';
 
+async function initApplication() {
+    try {
+        const response = await fetch(`${API_URL}/config`);
+        const config = await response.json();
+        if (!config.supabase_url || !config.supabase_anon_key) {
+            console.error("Supabase config variables are missing on the Render server!");
+            return;
+        }
+        supabaseClient = window.supabase.createClient(config.supabase_url, config.supabase_anon_key);
+        await checkSession();
+        await loadMatches(); 
+        setInterval(loadMatches, 30000); 
+    } catch (e) { console.error("Initialization error:", e); }
+}
+
 async function checkSession() {
+    if (!supabaseClient) return;
     const { data: { session } } = await supabaseClient.auth.getSession();
     currentUser = session ? session.user : null;
     
@@ -33,15 +45,6 @@ async function checkSession() {
         renderChatControls();
     }
 }
-
-supabaseClient.auth.onAuthStateChange((event, session) => {
-    currentUser = session ? session.user : null;
-    checkVipStatus();
-    renderHeader();
-    if (document.getElementById('forecast-modal') && document.getElementById('forecast-modal').style.display === 'flex') {
-        renderChatControls();
-    }
-});
 
 function checkVipStatus() {
     if (!currentUser) { isUserVIP = false; return; }
@@ -75,9 +78,8 @@ function renderHeader() {
     buttonsContainer.innerHTML = headerButtons;
 }
 
-async function signOut() { await supabaseClient.auth.signOut(); localStorage.removeItem('vip_status_' + currentUser.email); location.reload(); }
+async function signOut() { if (supabaseClient) { await supabaseClient.auth.signOut(); localStorage.removeItem('vip_status_' + currentUser.email); location.reload(); } }
 
-// === ОКНО АВТОРИЗАЦИИ ===
 const authModalHtml = `
     <div id="auth-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; z-index:2000; backdrop-filter: blur(4px);">
         <div style="background:#FFFFFF; width:90%; max-width:400px; border-radius:16px; padding:30px; box-shadow: 0 15px 35px rgba(0,0,0,0.2); position:relative; text-align:center;">
@@ -105,11 +107,10 @@ document.body.insertAdjacentHTML('beforeend', authModalHtml);
 
 function openAuthModal() { document.getElementById('auth-modal').style.display = 'flex'; }
 function closeAuthModal() { document.getElementById('auth-modal').style.display = 'none'; }
-async function signInWithProvider(provider) { await supabaseClient.auth.signInWithOAuth({ provider: provider, options: { redirectTo: window.location.origin } }); }
-async function signUpWithEmail() { const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; if (!email || password.length < 6) return alert("Enter valid email/password."); const { data, error } = await supabaseClient.auth.signUp({ email, password }); if (error) alert("Error: " + error.message); else { alert("Success! Check email if required."); closeAuthModal(); } }
-async function signInWithEmail() { const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) alert("Error: " + error.message); else closeAuthModal(); }
+async function signInWithProvider(provider) { if (supabaseClient) await supabaseClient.auth.signInWithOAuth({ provider: provider, options: { redirectTo: window.location.origin } }); }
+async function signUpWithEmail() { if (!supabaseClient) return; const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; if (!email || password.length < 6) return alert("Enter valid email/password."); const { data, error } = await supabaseClient.auth.signUp({ email, password }); if (error) alert("Error: " + error.message); else { alert("Success! Check email if required."); closeAuthModal(); } }
+async function signInWithEmail() { if (!supabaseClient) return; const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) alert("Error: " + error.message); else closeAuthModal(); }
 
-// === ЗАМОК ОПЛАТЫ (STRIPE) ===
 const paywallModalHtml = `
     <div id="paywall-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index:2500; backdrop-filter: blur(5px);">
         <div style="background:#FFFFFF; width:90%; max-width:450px; border-radius:16px; overflow:hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.3); position:relative;">
@@ -135,15 +136,8 @@ document.body.insertAdjacentHTML('beforeend', paywallModalHtml);
 
 function openPaywallModal() { document.getElementById('paywall-modal').style.display = 'flex'; }
 function closePaywallModal() { document.getElementById('paywall-modal').style.display = 'none'; }
+function processTestPayment() { window.location.href = "https://buy.stripe.com/test_dRm7sE0dfcL81fz32593y00"; }
 
-function processTestPayment() {
-    const stripeUrl = "https://buy.stripe.com/test_dRm7sE0dfcL81fz32593y00";
-    const btn = document.getElementById('stripe-test-btn');
-    btn.innerHTML = "Redirecting Securely..."; btn.style.background = "#9CA3AF";
-    window.location.href = stripeUrl;
-}
-
-// === ОКНО: MATCH CENTER (BOX SCORE) ===
 const matchCenterModalHtml = `
     <div id="match-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:1000;">
         <div style="background:#FFFFFF; width:95%; max-width:650px; border-radius:16px; display:flex; flex-direction:column; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding:20px; gap:20px;">
@@ -210,7 +204,6 @@ function updateBoxScoreModalData(matchId) {
     document.getElementById('linescore-home').innerHTML = homeBox;
 }
 
-// === ОКНО ПРОГНОЗА И ЧАТА ===
 const forecastModalHtml = `
     <div id="forecast-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:1000;">
         <div style="background:#FFFFFF; width:95%; max-width:600px; height:85%; border-radius:16px; display:flex; flex-direction:column; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
@@ -234,7 +227,7 @@ const forecastModalHtml = `
 `;
 document.body.insertAdjacentHTML('beforeend', forecastModalHtml);
 
-function openForecastModal(matchId) {
+async function openForecastModal(matchId) {
     currentChatMatchId = matchId;
     const match = allMatches.find(m => m.id === matchId);
     if (!match) return;
@@ -242,10 +235,20 @@ function openForecastModal(matchId) {
     document.getElementById('forecast-modal-title').innerText = `${match.away_team} @ ${match.home_team}`;
     document.getElementById('forecast-text-content').innerHTML = match.ai_analysis ? match.ai_analysis.replace(/\n/g, '<br>') : `<span style="color:#6B7280; font-style:italic;">Forecast not published yet.</span>`;
     document.getElementById('chat-messages-container').innerHTML = '';
-    if (match.chat_history) match.chat_history.forEach(msg => appendMessageToChat(msg.role === "user" ? "You" : "Buddy", msg.text));
     
     document.getElementById('forecast-modal').style.display = 'flex';
     renderChatControls();
+
+    // ЗАГРУЖАЕМ СТРОГО ЛИЧНЫЙ ЧАТ!
+    if (currentUser) {
+        try {
+            const response = await fetch(`${API_URL}/matches/${matchId}/chat/${currentUser.email}`);
+            if(response.ok) {
+                const history = await response.json();
+                history.forEach(msg => appendMessageToChat(msg.role === "user" ? "You" : "Buddy", msg.text));
+            }
+        } catch(e) {}
+    }
 }
 function closeForecastModal() { document.getElementById('forecast-modal').style.display = 'none'; currentChatMatchId = null; }
 
@@ -261,7 +264,6 @@ function renderChatControls() {
     }
 }
 
-// === АДМИН ПАНЕЛЬ ===
 const adminModalHtml = `
     <div id="admin-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:1001;">
         <div style="background:#FFFFFF; width:95%; max-width:550px; border-radius:12px; border-top: 4px solid #D50032; display:flex; flex-direction:column; padding:20px; gap:12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
@@ -345,10 +347,17 @@ async function loadMatches() {
 async function sendChatMessage() {
     if (!currentUser || !isUserVIP) return; 
     const input = document.getElementById('chat-user-input'); const msg = input.value.trim(); if (!msg || !currentChatMatchId) return;
+    
     appendMessageToChat("You", msg); input.value = ''; renderChatControls();
     const container = document.getElementById('chat-messages-container'); const loader = document.createElement('div'); loader.id = "chat-loading"; loader.innerHTML = "<em style='color:#6B7280; font-size: 14px;'>🧠 Crunching numbers...</em>"; container.appendChild(loader); scrollToBottom();
+    
     try {
-        const response = await fetch(`${API_URL}/matches/${currentChatMatchId}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg }) });
+        const response = await fetch(`${API_URL}/matches/${currentChatMatchId}/chat`, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            // ПЕРЕДАЕМ EMAIL, ЧТОБЫ БЭКЕНД ЗНАЛ, КОМУ ОТВЕЧАТЬ
+            body: JSON.stringify({ message: msg, user_id: currentUser.email }) 
+        });
         const data = await response.json(); document.getElementById('chat-loading').remove();
         if (response.ok) appendMessageToChat("Buddy", data.reply); else appendMessageToChat("Error", data.detail);
     } catch (e) { document.getElementById('chat-loading')?.remove(); appendMessageToChat("Error", "Timeout."); }
@@ -368,7 +377,4 @@ function openAdminPanel(matchId, awayTeam, homeTeam) { currentAdminMatchId = mat
 async function submitAdminUpdate() { if (document.getElementById('admin-password-field').value !== "admin123") return alert("Access Denied!"); document.getElementById('admin-submit-btn').innerText = "Uploading..."; try { await fetch(`${API_URL}/matches/${currentAdminMatchId}/admin-update`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ai_analysis: document.getElementById('admin-forecast-field').value, preview_text: document.getElementById('admin-stats-field').value, manual_pitchers: document.getElementById('admin-pitchers-field').value }) }); closeAdminModal(); loadMatches(); } catch (e) { alert("Error"); } document.getElementById('admin-submit-btn').innerText = "Save Draft"; }
 function closeAdminModal() { document.getElementById('admin-modal').style.display = 'none'; }
 
-// Запускаем всё напрямую, без ожидания ответа сервера!
-checkSession();
-loadMatches();
-setInterval(loadMatches, 30000);
+initApplication();
