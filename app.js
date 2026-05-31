@@ -284,15 +284,25 @@ function renderChatControls() {
 }
 
 // === АДМИН ПАНЕЛЬ ===
+// === АДМИН ПАНЕЛЬ ===
 const adminModalHtml = `
     <div id="admin-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:1001;">
         <div style="background:#FFFFFF; width:95%; max-width:550px; border-radius:12px; border-top: 4px solid #D50032; display:flex; flex-direction:column; padding:20px; gap:12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #E5E7EB; padding-bottom:10px;"><h3 id="admin-modal-title" style="margin:0; color:#002D72;">Control Room</h3><button onclick="closeAdminModal()" style="background:none; border:none; color:#6B7280; font-size:22px; cursor:pointer;">&times;</button></div>
+            
             <input type="password" id="admin-password-field" placeholder="Secret Key..." style="width:100%; padding:10px; background:#F3F4F6; border:1px solid #D1D5DB; color:#111827; border-radius:8px;">
+            
             <label style="font-size:12px; font-weight:bold; color:#002D72;">Manual Pitcher Stats:</label>
             <input type="text" id="admin-pitchers-field" placeholder="e.g. #34 RHP, 4-3, 3.23 vs #22 LHP..." style="width:100%; padding:10px; background:#F3F4F6; border:1px solid #D1D5DB; color:#111827; border-radius:8px;">
+            
             <textarea id="admin-forecast-field" placeholder="Public Forecast..." rows="3" style="width:100%; padding:10px; background:#F3F4F6; border:1px solid #D1D5DB; border-radius:8px; resize:vertical;"></textarea>
-            <textarea id="admin-stats-field" placeholder="B-R Raw Tables..." rows="3" style="width:100%; padding:10px; background:#F3F4F6; border:1px solid #D1D5DB; border-radius:8px; resize:vertical; font-family:monospace; font-size:12px;"></textarea>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 5px;">
+                <label style="font-size:12px; font-weight:bold; color:#002D72;">B-R Raw Tables (Text or Excel):</label>
+                <input type="file" id="excel-upload" accept=".xlsx, .xls, .csv" onchange="processExcelFile(event)" style="font-size: 11px; max-width: 220px; color: #6B7280;">
+            </div>
+            <textarea id="admin-stats-field" placeholder="Paste text or upload Excel above..." rows="3" style="width:100%; padding:10px; background:#F3F4F6; border:1px solid #D1D5DB; border-radius:8px; resize:vertical; font-family:monospace; font-size:12px;"></textarea>
+            
             <div style="display:flex; justify-content:flex-end; gap:10px;"><button onclick="closeAdminModal()" style="background:#E5E7EB; color:#374151; border:none; padding:10px 20px; border-radius:8px; font-weight:bold;">Cancel</button><button id="admin-submit-btn" onclick="submitAdminUpdate()" style="background:#002D72; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:bold;">Save Draft</button></div>
         </div>
     </div>
@@ -493,6 +503,51 @@ async function submitAdminUpdate() {
 
 function closeAdminModal() { 
     document.getElementById('admin-modal').style.display = 'none'; 
+}
+
+// === ПАРСИНГ EXCEL В БРАУЗЕРЕ (АДМИНКА) ===
+function processExcelFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            // Читаем массив данных как таблицу
+            const workbook = XLSX.read(data, {type: 'array'});
+            
+            let combinedText = "";
+            
+            // Пробегаемся по всем листам в Excel файле
+            workbook.SheetNames.forEach(sheetName => {
+                const worksheet = workbook.Sheets[sheetName];
+                // Магия: конвертируем визуальную таблицу в сухой CSV текст
+                const csvText = XLSX.utils.sheet_to_csv(worksheet);
+                
+                if (csvText.trim()) {
+                    combinedText += `--- Лист: ${sheetName} ---\n${csvText}\n\n`;
+                }
+            });
+            
+            // Заливаем текст в поле. Buddy будет доволен!
+            const statsField = document.getElementById('admin-stats-field');
+            statsField.value = combinedText;
+            
+            // Даем визуальный сигнал тренеру, что файл переварен (зеленая рамка)
+            statsField.style.border = "2px solid #10B981";
+            setTimeout(() => statsField.style.border = "1px solid #D1D5DB", 2000);
+            
+            // Очищаем input, чтобы можно было загрузить тот же файл еще раз, если нужно
+            event.target.value = ''; 
+            
+        } catch (error) {
+            alert("Тренер, файл не прочитался. Убедись, что это нормальный .xlsx или .csv");
+            console.error(error);
+        }
+    };
+    // Запускаем чтение
+    reader.readAsArrayBuffer(file);
 }
 
 // === ЛОГИКА СТАТИЧНОЙ КНОПКИ PWA ===
