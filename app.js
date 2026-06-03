@@ -20,14 +20,26 @@ async function checkSession() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     currentUser = session ? session.user : null;
     
+    isUserVIP = false;
+
+    // 1. Проверяем кэш браузера для обычных юзеров
+    if (currentUser && localStorage.getItem('vip_status_' + currentUser.email) === 'true') {
+        isUserVIP = true;
+    }
+
+    // 2. ЖЕЛЕЗНЫЙ ПРОПУСК ДЛЯ ТРЕНЕРА (впиши свой email)
+    if (currentUser && currentUser.email === 'vvgradusov@gmail.com') {
+        isUserVIP = true;
+    }
+
+    if (isBoss) isUserVIP = true;
+
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('payment') === 'success' && currentUser) {
         localStorage.setItem('vip_status_' + currentUser.email, 'true');
         isUserVIP = true;
         window.history.replaceState({}, document.title, window.location.pathname);
         setTimeout(() => alert("💳 Payment Successful! Welcome to the VIP Club!"), 500);
-    } else {
-        checkVipStatus();
     }
     
     renderHeader();
