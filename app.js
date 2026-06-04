@@ -134,10 +134,10 @@ const paywallModalHtml = `
                 <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-weight:600; font-size:15px;"><span>✅ Live Odds Line Analysis</span><span style="color:#10B981;">Included</span></div>
                 <div style="display:flex; justify-content:space-between; margin-bottom:25px; font-weight:600; font-size:15px;"><span>✅ Pro Analytics & Trends</span><span style="color:#10B981;">Included</span></div>
                 <div style="text-align:center; font-size:32px; font-weight:800; color:#111827; margin-bottom:20px;">$29.99 <span style="font-size:14px; font-weight:normal; color:#6B7280;">/ month</span></div>
-                <button id="stripe-test-btn" onclick="processTestPayment()" style="width:100%; background:#635BFF; color:white; border:none; padding:15px; border-radius:8px; font-weight:bold; font-size:16px; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:10px;">
-                    💳 Pay with Stripe
+                <button id="buy-vip-btn" style="width:100%; background:#10B981; color:white; border:none; padding:15px; border-radius:8px; font-weight:bold; font-size:16px; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:10px;">
+                    💎 Buy VIP — $29.99
                 </button>
-                <div style="text-align:center; font-size:11px; color:#9CA3AF; margin-top:15px;">🔒 Secured by Stripe. Cancel anytime.</div>
+                <div style="text-align:center; font-size:11px; color:#9CA3AF; margin-top:15px;">🔒 Secured by Plisio (Crypto). Cancel anytime.</div>
             </div>
         </div>
     </div>
@@ -146,7 +146,46 @@ document.body.insertAdjacentHTML('beforeend', paywallModalHtml);
 
 function openPaywallModal() { document.getElementById('paywall-modal').style.display = 'flex'; }
 function closePaywallModal() { document.getElementById('paywall-modal').style.display = 'none'; }
-function processTestPayment() { window.location.href = "https://buy.stripe.com/test_dRm7sE0dfcL81fz32593y00"; }
+
+// Кнопка «Купить VIP» → Plisio через бэкенд
+const buyVipBtn = document.getElementById('buy-vip-btn');
+if (buyVipBtn) {
+    buyVipBtn.addEventListener('click', async () => {
+        if (!currentUser || !currentUser.email) {
+            alert("Пожалуйста, сначала войдите в аккаунт.");
+            closePaywallModal();
+            openAuthModal();
+            return;
+        }
+
+        const originalText = buyVipBtn.innerHTML;
+        buyVipBtn.innerHTML = "Generating Invoice...";
+        buyVipBtn.disabled = true;
+
+        try {
+            const response = await fetch(`${API_URL}/create-payment`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: currentUser.email })
+            });
+
+            const data = await response.json();
+
+            if (data.payment_url) {
+                window.location.href = data.payment_url;
+            } else {
+                alert("Ошибка при создании счета.");
+                buyVipBtn.innerHTML = originalText;
+                buyVipBtn.disabled = false;
+            }
+        } catch (error) {
+            console.error("Payment API Error:", error);
+            alert("Произошла ошибка связи с сервером.");
+            buyVipBtn.innerHTML = originalText;
+            buyVipBtn.disabled = false;
+        }
+    });
+}
 
 // === ОКНО: MATCH CENTER (BOX SCORE) ===
 const matchCenterModalHtml = `
