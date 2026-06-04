@@ -3,7 +3,18 @@ const API_URL = "https://mlb-ai-server.onrender.com";
 // === ОФИЦИАЛЬНО ПУБЛИЧНЫЕ КЛЮЧИ SUPABASE ===
 const SUPABASE_URL = "https://fnuzgypznyzcphewmjdl.supabase.co"; 
 const SUPABASE_ANON_KEY = "sb_publishable_QihCry4fW9xq7S9cGJWCDg_TmUk46wP";
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+        flowType: 'pkce',
+        detectSessionInUrl: true,
+        persistSession: true
+    }
+});
+
+// Куда возвращать после Google/Discord/email — всегда текущий сайт, не Vercel
+function getAuthRedirectUrl() {
+    return window.location.origin + (window.location.pathname || '/');
+}
 
 let currentUser = null;
 let isUserVIP = false;
@@ -17,8 +28,26 @@ const isBoss = new URLSearchParams(window.location.search).get('boss') === '1';
 // === ПРОВЕРКА СЕССИИ ===
 async function checkSession() {
     if (!supabaseClient) return;
+
+    // Завершаем OAuth/PKCE, если Supabase вернул ?code=... или #access_token=...
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const queryParams = new URLSearchParams(window.location.search);
+    if (hashParams.has('access_token') || hashParams.has('error') || queryParams.has('code')) {
+        try {
+            await supabaseClient.auth.getSession();
+            window.history.replaceState({}, document.title, getAuthRedirectUrl());
+        } catch (e) {
+            console.error('OAuth callback error:', e);
+        }
+    }
+
     const { data: { session } } = await supabaseClient.auth.getSession();
     currentUser = session ? session.user : null;
+
+    // Очищаем URL от решетки без перезагрузки страницы
+    if (currentUser && window.location.hash === '#') {
+        window.history.replaceState('', document.title, window.location.pathname + window.location.search);
+    }
     
     isUserVIP = false;
 
@@ -116,9 +145,36 @@ document.body.insertAdjacentHTML('beforeend', authModalHtml);
 
 function openAuthModal() { document.getElementById('auth-modal').style.display = 'flex'; }
 function closeAuthModal() { document.getElementById('auth-modal').style.display = 'none'; }
-async function signInWithProvider(provider) { if (supabaseClient) await supabaseClient.auth.signInWithOAuth({ provider: provider, options: { redirectTo: window.location.origin } }); }
-async function signUpWithEmail() { if (!supabaseClient) return; const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; if (!email || password.length < 6) return alert("Enter valid email/password."); const { data, error } = await supabaseClient.auth.signUp({ email, password }); if (error) alert("Error: " + error.message); else { alert("Success! Check email if required."); closeAuthModal(); } }
-async function signInWithEmail() { if (!supabaseClient) return; const email = document.getElementById('auth-email').value; const password = document.getElementById('auth-password').value; const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) alert("Error: " + error.message); else closeAuthModal(); }
+async function signInWithProvider(provider) {
+    if (!supabaseClient) return;
+    await supabaseClient.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: getAuthRedirectUrl() }
+    });
+}
+
+async function signUpWithEmail() {
+    if (!supabaseClient) return;
+    const email = document.getElementById('auth-email').value;
+    const password = document.getElementById('auth-password').value;
+    if (!email || password.length < 6) return alert("Enter valid email/password.");
+    const { error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: getAuthRedirectUrl() }
+    });
+    if (error) alert("Error: " + error.message);
+    else { alert("Success! Check email if required."); closeAuthModal(); }
+}
+
+async function signInWithEmail() {
+    if (!supabaseClient) return;
+    const email = document.getElementById('auth-email').value;
+    const password = document.getElementById('auth-password').value;
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) alert("Error: " + error.message);
+    else closeAuthModal();
+}
 
 // === ЗАМОК ОПЛАТЫ (STRIPE) ===
 const paywallModalHtml = `
