@@ -1,16 +1,20 @@
 {
-  "name": "BasePicks AI - MLB Quant",
-  "short_name": "BasePicks",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#002D72",
-  "theme_color": "#002D72",
-  "icons": [
-    {
-      "src": "icon.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
-}
+    "name": "BasePicks AI",
+    "short_name": "MLB Buddy",
+    "start_url": "/?standalone=1",
+    "display": "standalone",
+    "background_color": "#002D72",
+    "theme_color": "#002D72",
+    "icons": [
+      {
+        "src": "icon.png",
+        "sizes": "192x192",
+        "type": "image/png"
+      },
+      {
+        "src": "icon.png",
+        "sizes": "512x512",
+        "type": "image/png"
+      }
+    ]
+  }
