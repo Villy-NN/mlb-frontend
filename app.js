@@ -29,7 +29,7 @@ const isBoss = new URLSearchParams(window.location.search).get('boss') === '1';
 async function checkSession() {
     if (!supabaseClient) return;
 
-    // Завершаем OAuth/PKCE, если Supabase вернул ?code=... или #access_token=...
+    // Завершаем OAuth/PKCE
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const queryParams = new URLSearchParams(window.location.search);
     if (hashParams.has('access_token') || hashParams.has('error') || queryParams.has('code')) {
@@ -44,25 +44,45 @@ async function checkSession() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     currentUser = session ? session.user : null;
 
-    // Очищаем URL от решетки без перезагрузки страницы
+    // Очищаем URL от решетки
     if (currentUser && window.location.hash === '#') {
         window.history.replaceState('', document.title, window.location.pathname + window.location.search);
     }
     
     isUserVIP = false;
 
-    // 1. Проверяем кэш браузера для обычных юзеров
-    if (currentUser && localStorage.getItem('vip_status_' + currentUser.email) === 'true') {
-        isUserVIP = true;
-    }
-
-    // 2. ЖЕЛЕЗНЫЙ ПРОПУСК ДЛЯ ТРЕНЕРА (впиши свой email)
-    if (currentUser && currentUser.email === 'vvgradusov@gmail.com') {
-        isUserVIP = true;
+    if (currentUser) {
+        // ЖЕЛЕЗНЫЙ ПРОПУСК ДЛЯ ТРЕНЕРА
+        if (currentUser.email === 'vvgradusov@gmail.com') {
+            isUserVIP = true;
+        } else {
+            // СПРАШИВАЕМ БАЗУ ДАННЫХ: VIP ли этот юзер?
+            try {
+                const { data, error } = await supabaseClient
+                    .from('users')
+                    .select('is_vip')
+                    .eq('email', currentUser.email)
+                    .single();
+                
+                if (data && data.is_vip) {
+                    isUserVIP = true;
+                    // Обновляем локальный кэш, чтобы помнить
+                    localStorage.setItem('vip_status_' + currentUser.email, 'true');
+                } else {
+                    // Страховка на крайний случай (оставляем проверку кэша)
+                    if (localStorage.getItem('vip_status_' + currentUser.email) === 'true') {
+                        isUserVIP = true;
+                    }
+                }
+            } catch (err) {
+                console.error("Ошибка проверки VIP:", err);
+            }
+        }
     }
 
     if (isBoss) isUserVIP = true;
 
+    // Обработка возврата с успешной оплаты Plisio
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('payment') === 'success' && currentUser) {
         localStorage.setItem('vip_status_' + currentUser.email, 'true');
