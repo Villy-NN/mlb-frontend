@@ -74,7 +74,12 @@ async function checkSession() {
             if (data) {
                 freeMessagesUsed = data.free_messages_used || 0;
                 myRefCode = data.ref_code;
-                userNickname = data.nickname || currentUser.email.split('@')[0];
+                userNickname = data.nickname;
+                
+                if (!myRefCode) {
+                    myRefCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+                    supabaseClient.from('users').update({ ref_code: myRefCode }).eq('email', currentUser.email).then();
+                }
                 
                 const pendingRef = localStorage.getItem('pending_ref_code');
                 if (pendingRef && !data.referred_by && pendingRef !== myRefCode) {
@@ -93,6 +98,7 @@ async function checkSession() {
                         calendarVipActive = true;
                         const diffTime = Math.abs(expireDate - now);
                         vipDaysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        if (vipDaysLeft === 0) vipDaysLeft = 1;
                         if (vipDaysLeft > 100) isSeasonPass = true;
                     }
                 }
@@ -103,6 +109,9 @@ async function checkSession() {
                 } else {
                     localStorage.removeItem('vip_status_' + currentUser.email);
                 }
+            } else {
+                myRefCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+                supabaseClient.from('users').insert([{ email: currentUser.email, ref_code: myRefCode }]).then();
             }
         } catch (err) {
             console.error("Ошибка проверки VIP:", err);
@@ -161,11 +170,11 @@ function renderHeader() {
             daysText = isSeasonPass ? " (Season)" : ` (${vipDaysLeft} days)`;
         }
         
-        if (myRefCode) {
-            headerButtons += `<button onclick="openProfileModal()" style="background-color: #10B981; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">🎁 Get Free VIP</button>`;
-        }
+        const safeName = userNickname || (currentUser.email ? currentUser.email.split('@')[0] : "Bettor");
         
-        headerButtons += `<button onclick="openProfileModal()" style="background-color: #002D72; color: white; border: 1px solid #ffffff; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">${badge}: ${userNickname}${daysText}</button>`;
+        headerButtons += `<button onclick="openProfileModal()" style="background-color: #10B981; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">🎁 Get Free VIP</button>`;
+        
+        headerButtons += `<button onclick="openProfileModal()" style="background-color: #002D72; color: white; border: 1px solid #ffffff; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">⚙️ Profile: ${safeName}${daysText}</button>`;
     } else {
         headerButtons += `<button onclick="openAuthModal()" style="background-color: #E5E7EB; color: #111827; border: 1px solid #D1D5DB; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">Sign In</button>`;
     }
