@@ -23,6 +23,13 @@ let allMatches = [];
 let currentChatMatchId = null;
 let currentBoxScoreMatchId = null; 
 let currentAdminMatchId = null;
+let myRefCode = null;
+
+// ЛОВУШКА ДЛЯ РЕФЕРАЛОВ: Запоминаем код, если юзер пришел по ссылке друга
+const incomingRefParams = new URLSearchParams(window.location.search);
+if (incomingRefParams.has('ref')) {
+    localStorage.setItem('pending_ref_code', incomingRefParams.get('ref'));
+}
 
 const isBoss = new URLSearchParams(window.location.search).get('boss') === '1';
 
@@ -57,17 +64,26 @@ async function checkSession() {
         if (currentUser.email === 'vvgradusov@gmail.com') {
             isUserVIP = true;
         } else {
-            // СПРАШИВАЕМ БАЗУ ДАННЫХ: VIP ли этот юзер по календарю?
+            // СПРАШИВАЕМ БАЗУ ДАННЫХ: VIP ли этот юзер и какой у него реф-код?
             try {
                 const { data, error } = await supabaseClient
                     .from('users')
-                    .select('is_vip, free_messages_used, vip_until')
+                    .select('is_vip, free_messages_used, vip_until, ref_code, referred_by')
                     .eq('email', currentUser.email)
                     .single();
                 
                 if (data) {
                     freeMessagesUsed = data.free_messages_used || 0;
+                    myRefCode = data.ref_code;
                     
+                    const pendingRef = localStorage.getItem('pending_ref_code');
+                    if (pendingRef && !data.referred_by && pendingRef !== myRefCode) {
+                        supabaseClient.from('users')
+                            .update({ referred_by: pendingRef })
+                            .eq('email', currentUser.email)
+                            .then(() => localStorage.removeItem('pending_ref_code'));
+                    }
+
                     let calendarVipActive = false;
                     if (data.vip_until) {
                         const expireDate = new Date(data.vip_until);
@@ -131,6 +147,12 @@ function renderHeader() {
     if (currentUser) {
         const name = currentUser.email ? currentUser.email.split('@')[0] : "User";
         const badge = isUserVIP ? "👑 VIP" : "👤 Free";
+        
+        if (isUserVIP && myRefCode) {
+            const refLink = `${window.location.origin}/?ref=${myRefCode}`;
+            headerButtons += `<button onclick="navigator.clipboard.writeText('${refLink}'); alert('Link copied! Send it to a friend. When they upgrade, you BOTH get +30 days free!');" style="background-color: #10B981; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">🎁 Get Free VIP</button>`;
+        }
+        
         headerButtons += `<button onclick="signOut()" style="background-color: #002D72; color: white; border: 1px solid #ffffff; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">${badge}: ${name} (Exit)</button>`;
     } else {
         headerButtons += `<button onclick="openAuthModal()" style="background-color: #E5E7EB; color: #111827; border: 1px solid #D1D5DB; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">Sign In</button>`;
