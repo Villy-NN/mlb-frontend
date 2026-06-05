@@ -18,6 +18,7 @@ function getAuthRedirectUrl() {
 
 let currentUser = null;
 let isUserVIP = false;
+let freeMessagesUsed = 0;
 let allMatches = []; 
 let currentChatMatchId = null;
 let currentBoxScoreMatchId = null; 
@@ -56,22 +57,23 @@ async function checkSession() {
         if (currentUser.email === 'vvgradusov@gmail.com') {
             isUserVIP = true;
         } else {
-            // СПРАШИВАЕМ БАЗУ ДАННЫХ: VIP ли этот юзер?
+            // СПРАШИВАЕМ БАЗУ ДАННЫХ: VIP ли этот юзер и сколько бесплатных сообщений потратил?
             try {
                 const { data, error } = await supabaseClient
                     .from('users')
-                    .select('is_vip')
+                    .select('is_vip, free_messages_used')
                     .eq('email', currentUser.email)
                     .single();
                 
-                if (data && data.is_vip) {
-                    isUserVIP = true;
-                    // Обновляем локальный кэш, чтобы помнить
-                    localStorage.setItem('vip_status_' + currentUser.email, 'true');
-                } else {
-                    // Страховка на крайний случай (оставляем проверку кэша)
-                    if (localStorage.getItem('vip_status_' + currentUser.email) === 'true') {
+                if (data) {
+                    freeMessagesUsed = data.free_messages_used || 0;
+                    if (data.is_vip) {
                         isUserVIP = true;
+                        localStorage.setItem('vip_status_' + currentUser.email, 'true');
+                    } else {
+                        if (localStorage.getItem('vip_status_' + currentUser.email) === 'true') {
+                            isUserVIP = true;
+                        }
                     }
                 }
             } catch (err) {
@@ -402,11 +404,19 @@ function renderChatControls() {
     const controls = document.getElementById('chat-controls');
     if (!currentUser) {
         controls.innerHTML = `<input type="text" disabled placeholder="🔒 Locked. Please sign in to chat." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#F3F4F6; color:#6B7280;"><button onclick="openAuthModal()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Sign In</button>`;
-    } else if (!isUserVIP) {
-        controls.innerHTML = `<input type="text" disabled placeholder="🔒 VIP Required to ask Buddy questions." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#FEF3C7; color:#B45309;"><button onclick="openPaywallModal()" style="background:#10B981; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.3);">💎 Upgrade to VIP</button>`;
-    } else {
+    } else if (isUserVIP) {
         controls.innerHTML = `<input type="text" id="chat-user-input" placeholder="Ask Buddy about odds or players..." style="flex-grow:1; padding:12px; border:1px solid #D1D5DB; border-radius:8px; background:#FFFFFF; color:#111827; outline:none;"><button onclick="sendChatMessage()" style="background:#002D72; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Send</button>`;
         document.getElementById('chat-user-input').addEventListener('keydown', e => { if (e.key === "Enter") sendChatMessage(); });
+    } else if (freeMessagesUsed < 3) {
+        const left = 3 - freeMessagesUsed;
+        controls.innerHTML = `<div style="flex-grow:1; position:relative;">
+            <input type="text" id="chat-user-input" placeholder="Ask Buddy (Free trial)..." style="width:100%; box-sizing:border-box; padding:12px; border:1px solid #10B981; border-radius:8px; background:#F0FDF4; color:#111827; outline:none;">
+            <span style="position:absolute; right:10px; top:12px; font-size:11px; font-weight:bold; color:#10B981; background:white; padding:2px 6px; border-radius:4px;">${left} FREE LEFT</span>
+        </div>
+        <button onclick="sendChatMessage()" style="background:#10B981; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer;">Send</button>`;
+        document.getElementById('chat-user-input').addEventListener('keydown', e => { if (e.key === "Enter") sendChatMessage(); });
+    } else {
+        controls.innerHTML = `<input type="text" disabled placeholder="🔒 Free trial ended. VIP required." style="flex-grow:1; padding:12px; border:1px solid #E5E7EB; border-radius:8px; background:#FEF3C7; color:#B45309;"><button onclick="openPaywallModal()" style="background:#D50032; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(213,0,50,0.3);">💎 Upgrade to VIP</button>`;
     }
 }
 
@@ -537,13 +547,21 @@ async function loadMatches() {
 }
 
 async function sendChatMessage() {
-    if (!currentUser || !isUserVIP) return; 
+    if (!currentUser) return; 
+    
+    if (!isUserVIP && freeMessagesUsed >= 3) {
+        openPaywallModal();
+        return;
+    }
+
     const input = document.getElementById('chat-user-input'); 
     const msg = input.value.trim(); 
     if (!msg || !currentChatMatchId) return;
     
     appendMessageToChat("You", msg); 
     input.value = ''; 
+    
+    if (!isUserVIP) freeMessagesUsed++;
     renderChatControls();
     
     const container = document.getElementById('chat-messages-container'); 
@@ -564,12 +582,25 @@ async function sendChatMessage() {
         
         if (response.ok) {
             appendMessageToChat("Buddy", data.reply); 
+            if (data.free_messages_left !== undefined && !isUserVIP) {
+                freeMessagesUsed = 3 - data.free_messages_left;
+                renderChatControls();
+            }
         } else {
-            appendMessageToChat("Error", data.detail);
+            if (!isUserVIP) freeMessagesUsed--;
+            renderChatControls();
+            
+            if (response.status === 403) {
+                openPaywallModal();
+            } else {
+                appendMessageToChat("Error", data.detail || "Server error.");
+            }
         }
     } catch (e) { 
         document.getElementById('chat-loading')?.remove(); 
-        appendMessageToChat("Error", "Timeout."); 
+        if (!isUserVIP) freeMessagesUsed--;
+        renderChatControls();
+        appendMessageToChat("Error", "Timeout. Check connection."); 
     }
 }
 
