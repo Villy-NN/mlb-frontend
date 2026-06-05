@@ -96,10 +96,11 @@ async function checkSession() {
                     const now = new Date();
                     if (expireDate > now) {
                         calendarVipActive = true;
-                        const diffTime = Math.abs(expireDate - now);
-                        vipDaysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        if (vipDaysLeft === 0) vipDaysLeft = 1;
+                        const diffTime = expireDate - now;
+                        vipDaysLeft = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
                         if (vipDaysLeft > 100) isSeasonPass = true;
+                    } else {
+                        vipDaysLeft = 0;
                     }
                 }
 
@@ -121,6 +122,7 @@ async function checkSession() {
         if (currentUser.email === 'vvgradusov@gmail.com') {
             isUserVIP = true;
         }
+        renderHeader();
     }
 
     if (isBoss) isUserVIP = true;
@@ -173,8 +175,7 @@ function renderHeader() {
         const safeName = userNickname || (currentUser.email ? currentUser.email.split('@')[0] : "Bettor");
         
         headerButtons += `<button onclick="openProfileModal()" style="background-color: #10B981; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">🎁 Get Free VIP</button>`;
-        
-        headerButtons += `<button onclick="openProfileModal()" style="background-color: #002D72; color: white; border: 1px solid #ffffff; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">⚙️ Profile: ${safeName}${daysText}</button>`;
+        headerButtons += `<button onclick="openProfileModal()" style="background-color: #002D72; color: white; border: 1px solid #ffffff; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">⚙️ Profile: ${badge} ${safeName}${daysText}</button>`;
     } else {
         headerButtons += `<button onclick="openAuthModal()" style="background-color: #E5E7EB; color: #111827; border: 1px solid #D1D5DB; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">Sign In</button>`;
     }
