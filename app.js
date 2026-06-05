@@ -60,48 +60,48 @@ async function checkSession() {
     isUserVIP = false;
 
     if (currentUser) {
-        // ЖЕЛЕЗНЫЙ ПРОПУСК ДЛЯ ТРЕНЕРА
-        if (currentUser.email === 'vvgradusov@gmail.com') {
-            isUserVIP = true;
-        } else {
-            // СПРАШИВАЕМ БАЗУ ДАННЫХ: VIP ли этот юзер и какой у него реф-код?
-            try {
-                const { data, error } = await supabaseClient
-                    .from('users')
-                    .select('is_vip, free_messages_used, vip_until, ref_code, referred_by')
-                    .eq('email', currentUser.email)
-                    .single();
+        // 1. СПРАШИВАЕМ БАЗУ ДАННЫХ ДЛЯ ВСЕХ (чтобы получить ref_code)
+        try {
+            const { data, error } = await supabaseClient
+                .from('users')
+                .select('is_vip, free_messages_used, vip_until, ref_code, referred_by')
+                .eq('email', currentUser.email)
+                .single();
+            
+            if (data) {
+                freeMessagesUsed = data.free_messages_used || 0;
+                myRefCode = data.ref_code;
                 
-                if (data) {
-                    freeMessagesUsed = data.free_messages_used || 0;
-                    myRefCode = data.ref_code;
-                    
-                    const pendingRef = localStorage.getItem('pending_ref_code');
-                    if (pendingRef && !data.referred_by && pendingRef !== myRefCode) {
-                        supabaseClient.from('users')
-                            .update({ referred_by: pendingRef })
-                            .eq('email', currentUser.email)
-                            .then(() => localStorage.removeItem('pending_ref_code'));
-                    }
+                const pendingRef = localStorage.getItem('pending_ref_code');
+                if (pendingRef && !data.referred_by && pendingRef !== myRefCode) {
+                    supabaseClient.from('users')
+                        .update({ referred_by: pendingRef })
+                        .eq('email', currentUser.email)
+                        .then(() => localStorage.removeItem('pending_ref_code'));
+                }
 
-                    let calendarVipActive = false;
-                    if (data.vip_until) {
-                        const expireDate = new Date(data.vip_until);
-                        if (expireDate > new Date()) {
-                            calendarVipActive = true;
-                        }
-                    }
-
-                    if (data.is_vip || calendarVipActive) {
-                        isUserVIP = true;
-                        localStorage.setItem('vip_status_' + currentUser.email, 'true');
-                    } else {
-                        localStorage.removeItem('vip_status_' + currentUser.email);
+                let calendarVipActive = false;
+                if (data.vip_until) {
+                    const expireDate = new Date(data.vip_until);
+                    if (expireDate > new Date()) {
+                        calendarVipActive = true;
                     }
                 }
-            } catch (err) {
-                console.error("Ошибка проверки VIP:", err);
+
+                if (data.is_vip || calendarVipActive) {
+                    isUserVIP = true;
+                    localStorage.setItem('vip_status_' + currentUser.email, 'true');
+                } else {
+                    localStorage.removeItem('vip_status_' + currentUser.email);
+                }
             }
+        } catch (err) {
+            console.error("Ошибка проверки VIP:", err);
+        }
+
+        // 2. ЖЕЛЕЗНЫЙ ПРОПУСК ДЛЯ ТРЕНЕРА (Применяем поверх данных из БД)
+        if (currentUser.email === 'vvgradusov@gmail.com') {
+            isUserVIP = true;
         }
     }
 
