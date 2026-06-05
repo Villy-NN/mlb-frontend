@@ -24,6 +24,9 @@ let currentChatMatchId = null;
 let currentBoxScoreMatchId = null; 
 let currentAdminMatchId = null;
 let myRefCode = null;
+let userNickname = null;
+let vipDaysLeft = 0;
+let isSeasonPass = false;
 
 // ЛОВУШКА ДЛЯ РЕФЕРАЛОВ: Запоминаем код, если юзер пришел по ссылке друга
 const incomingRefParams = new URLSearchParams(window.location.search);
@@ -60,31 +63,37 @@ async function checkSession() {
     isUserVIP = false;
 
     if (currentUser) {
-        // 1. СПРАШИВАЕМ БАЗУ ДАННЫХ ДЛЯ ВСЕХ (чтобы получить ref_code)
+        // СПРАШИВАЕМ БАЗУ ДАННЫХ: VIP ли этот юзер, какой ник и сколько дней?
         try {
             const { data, error } = await supabaseClient
                 .from('users')
-                .select('is_vip, free_messages_used, vip_until, ref_code, referred_by')
+                .select('is_vip, free_messages_used, vip_until, ref_code, referred_by, nickname')
                 .eq('email', currentUser.email)
                 .single();
             
             if (data) {
                 freeMessagesUsed = data.free_messages_used || 0;
                 myRefCode = data.ref_code;
+                userNickname = data.nickname || currentUser.email.split('@')[0];
                 
                 const pendingRef = localStorage.getItem('pending_ref_code');
                 if (pendingRef && !data.referred_by && pendingRef !== myRefCode) {
-                    supabaseClient.from('users')
-                        .update({ referred_by: pendingRef })
-                        .eq('email', currentUser.email)
+                    supabaseClient.from('users').update({ referred_by: pendingRef }).eq('email', currentUser.email)
                         .then(() => localStorage.removeItem('pending_ref_code'));
                 }
 
                 let calendarVipActive = false;
+                vipDaysLeft = 0;
+                isSeasonPass = false;
+
                 if (data.vip_until) {
                     const expireDate = new Date(data.vip_until);
-                    if (expireDate > new Date()) {
+                    const now = new Date();
+                    if (expireDate > now) {
                         calendarVipActive = true;
+                        const diffTime = Math.abs(expireDate - now);
+                        vipDaysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        if (vipDaysLeft > 100) isSeasonPass = true;
                     }
                 }
 
@@ -145,15 +154,18 @@ function renderHeader() {
         `;
     }
     if (currentUser) {
-        const name = currentUser.email ? currentUser.email.split('@')[0] : "User";
         const badge = isUserVIP ? "👑 VIP" : "👤 Free";
+        let daysText = "";
         
-        if (isUserVIP && myRefCode) {
-            const refLink = `${window.location.origin}/?ref=${myRefCode}`;
-            headerButtons += `<button onclick="navigator.clipboard.writeText('${refLink}'); alert('Link copied! Send it to a friend. When they upgrade, you BOTH get +30 days free!');" style="background-color: #10B981; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">🎁 Get Free VIP</button>`;
+        if (isUserVIP) {
+            daysText = isSeasonPass ? " (Season)" : ` (${vipDaysLeft} days)`;
         }
         
-        headerButtons += `<button onclick="signOut()" style="background-color: #002D72; color: white; border: 1px solid #ffffff; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">${badge}: ${name} (Exit)</button>`;
+        if (myRefCode) {
+            headerButtons += `<button onclick="openProfileModal()" style="background-color: #10B981; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">🎁 Get Free VIP</button>`;
+        }
+        
+        headerButtons += `<button onclick="openProfileModal()" style="background-color: #002D72; color: white; border: 1px solid #ffffff; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">${badge}: ${userNickname}${daysText}</button>`;
     } else {
         headerButtons += `<button onclick="openAuthModal()" style="background-color: #E5E7EB; color: #111827; border: 1px solid #D1D5DB; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 10px;">Sign In</button>`;
     }
@@ -827,4 +839,87 @@ async function forceSyncDB() {
     } catch (error) {
         alert("❌ Error syncing database: " + error);
     }
+}
+
+// === ОКНО ПРОФИЛЯ ПОЛЬЗОВАТЕЛЯ ===
+const profileModalHtml = `
+    <div id="profile-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index:3000; backdrop-filter: blur(5px);">
+        <div style="background:#FFFFFF; width:90%; max-width:400px; border-radius:16px; overflow:hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.3); position:relative;">
+            <div style="background: #002D72; padding: 20px; text-align: center; color: white;">
+                <button onclick="closeProfileModal()" style="position:absolute; top:15px; right:15px; background:none; border:none; font-size:24px; color:white; cursor:pointer;">&times;</button>
+                <h2 style="margin:0; font-weight:800; font-size:20px;">My Profile</h2>
+            </div>
+            <div style="padding: 20px;">
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-size:12px; font-weight:bold; color:#6B7280;">DISPLAY NAME</label>
+                    <div style="display:flex; gap:10px; margin-top:5px;">
+                        <input type="text" id="profile-nickname-input" placeholder="Enter nickname..." style="flex-grow:1; padding:10px; border:1px solid #D1D5DB; border-radius:8px; outline:none; font-weight:bold;">
+                        <button onclick="saveNickname()" style="background:#002D72; color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:bold; cursor:pointer;">Save</button>
+                    </div>
+                </div>
+
+                <div style="background:#F3F4F6; padding:15px; border-radius:8px; margin-bottom:15px; text-align:center; border:1px solid #E5E7EB;">
+                    <div id="profile-status-text" style="font-size:16px; font-weight:bold; margin-bottom:10px; color:#111827;"></div>
+                    <button id="profile-upgrade-btn" onclick="closeProfileModal(); openPaywallModal();" style="display:none; background:#D50032; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:bold; cursor:pointer; width:100%; box-shadow: 0 4px 6px rgba(213,0,50,0.3);">💎 Upgrade Plan</button>
+                </div>
+
+                <div style="border: 2px dashed #10B981; padding:15px; border-radius:8px; margin-bottom:20px; text-align:center; background:#F0FDF4;">
+                    <div style="font-size:14px; font-weight:bold; color:#065F46; margin-bottom:5px;">🎁 Invite & Earn</div>
+                    <div style="font-size:12px; color:#047857; margin-bottom:10px; line-height:1.4;">Give a friend the link below. When they upgrade, you BOTH get +30 days of VIP for free!</div>
+                    <button onclick="copyMyRefLink()" style="background:#10B981; color:white; border:none; padding:8px 15px; border-radius:8px; font-weight:bold; cursor:pointer; width:100%;">Copy Invite Link</button>
+                </div>
+
+                <button onclick="signOut()" style="width:100%; background:#E5E7EB; color:#4B5563; border:none; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer;">Sign Out</button>
+            </div>
+        </div>
+    </div>
+`;
+document.body.insertAdjacentHTML('beforeend', profileModalHtml);
+
+function openProfileModal() {
+    if (!currentUser) return;
+    document.getElementById('profile-nickname-input').value = userNickname;
+    
+    const statusText = document.getElementById('profile-status-text');
+    const upgradeBtn = document.getElementById('profile-upgrade-btn');
+    
+    if (!isUserVIP) {
+        statusText.innerHTML = "Status: <span style='color:#6B7280;'>Free Account</span>";
+        upgradeBtn.innerText = "💎 Unlock VIP Access";
+        upgradeBtn.style.display = "block";
+    } else if (isUserVIP && !isSeasonPass) {
+        statusText.innerHTML = `Status: <span style='color:#10B981;'>VIP Active</span><br><span style='font-size:12px; color:#6B7280; font-weight:normal;'>(${vipDaysLeft} days remaining)</span>`;
+        upgradeBtn.innerText = "⭐ Upgrade to Season Pass";
+        upgradeBtn.style.display = "block";
+    } else {
+        statusText.innerHTML = "Status: <span style='color:#002D72;'>👑 Full Season Pass</span><br><span style='font-size:12px; color:#6B7280; font-weight:normal;'>(Valid through World Series)</span>";
+        upgradeBtn.style.display = "none";
+    }
+    
+    document.getElementById('profile-modal').style.display = 'flex';
+}
+
+function closeProfileModal() { document.getElementById('profile-modal').style.display = 'none'; }
+
+async function saveNickname() {
+    const newName = document.getElementById('profile-nickname-input').value.trim();
+    if (!newName) return alert("Nickname cannot be empty!");
+    if (!supabaseClient) return;
+    
+    try {
+        await supabaseClient.from('users').update({ nickname: newName }).eq('email', currentUser.email);
+        userNickname = newName;
+        renderHeader();
+        alert("Nickname saved successfully!");
+    } catch (e) {
+        alert("Error saving nickname.");
+    }
+}
+
+function copyMyRefLink() {
+    if (!myRefCode) return alert("Error generating your invite link. Try refreshing the page.");
+    const refLink = `${window.location.origin}/?ref=${myRefCode}`;
+    navigator.clipboard.writeText(refLink);
+    alert("Link copied! Send it to a friend.");
 }
