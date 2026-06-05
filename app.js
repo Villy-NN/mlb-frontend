@@ -57,23 +57,30 @@ async function checkSession() {
         if (currentUser.email === 'vvgradusov@gmail.com') {
             isUserVIP = true;
         } else {
-            // СПРАШИВАЕМ БАЗУ ДАННЫХ: VIP ли этот юзер и сколько бесплатных сообщений потратил?
+            // СПРАШИВАЕМ БАЗУ ДАННЫХ: VIP ли этот юзер по календарю?
             try {
                 const { data, error } = await supabaseClient
                     .from('users')
-                    .select('is_vip, free_messages_used')
+                    .select('is_vip, free_messages_used, vip_until')
                     .eq('email', currentUser.email)
                     .single();
                 
                 if (data) {
                     freeMessagesUsed = data.free_messages_used || 0;
-                    if (data.is_vip) {
+                    
+                    let calendarVipActive = false;
+                    if (data.vip_until) {
+                        const expireDate = new Date(data.vip_until);
+                        if (expireDate > new Date()) {
+                            calendarVipActive = true;
+                        }
+                    }
+
+                    if (data.is_vip || calendarVipActive) {
                         isUserVIP = true;
                         localStorage.setItem('vip_status_' + currentUser.email, 'true');
                     } else {
-                        if (localStorage.getItem('vip_status_' + currentUser.email) === 'true') {
-                            isUserVIP = true;
-                        }
+                        localStorage.removeItem('vip_status_' + currentUser.email);
                     }
                 }
             } catch (err) {
@@ -198,24 +205,40 @@ async function signInWithEmail() {
     else closeAuthModal();
 }
 
-// === ЗАМОК ОПЛАТЫ (STRIPE) ===
+// === ОКНО ОПЛАТЫ (ДВА ТАРИФА: MONTHLY & SEASON) ===
 const paywallModalHtml = `
     <div id="paywall-modal" style="display: none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index:2500; backdrop-filter: blur(5px);">
         <div style="background:#FFFFFF; width:90%; max-width:450px; border-radius:16px; overflow:hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.3); position:relative;">
             <div style="background: #002D72; padding: 25px 20px; text-align: center; color: white;">
                 <button onclick="closePaywallModal()" style="position:absolute; top:15px; right:15px; background:none; border:none; font-size:24px; color:white; cursor:pointer;">&times;</button>
                 <h2 style="margin:0; font-weight:800; font-size:24px; text-transform:uppercase;">Unlock Buddy AI Chat</h2>
-                <p style="margin:10px 0 0 0; color:#93C5FD; font-size:14px;">Get personal consulting and deep metrics</p>
+                <p style="margin:10px 0 0 0; color:#93C5FD; font-size:14px;">Get elite sabermetrics & real-time line value analysis</p>
             </div>
-            <div style="padding: 30px 20px;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-weight:600; font-size:15px;"><span>✅ Direct Line with Buddy AI</span><span style="color:#10B981;">Unlimited</span></div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-weight:600; font-size:15px;"><span>✅ Live Odds Line Analysis</span><span style="color:#10B981;">Included</span></div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:25px; font-weight:600; font-size:15px;"><span>✅ Pro Analytics & Trends</span><span style="color:#10B981;">Included</span></div>
-                <div style="text-align:center; font-size:32px; font-weight:800; color:#111827; margin-bottom:20px;">$29.99 <span style="font-size:14px; font-weight:normal; color:#6B7280;">/ month</span></div>
-                <button id="buy-vip-btn" style="width:100%; background:#10B981; color:white; border:none; padding:15px; border-radius:8px; font-weight:bold; font-size:16px; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:10px;">
-                    💎 Buy VIP — $29.99
-                </button>
-                <div style="text-align:center; font-size:11px; color:#9CA3AF; margin-top:15px;">🔒 Secured by Plisio (Crypto). Cancel anytime.</div>
+            <div style="padding: 24px 20px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-weight:600; font-size:14px;"><span>✅ Unlimited Lines with Buddy AI</span><span style="color:#10B981;">Uncapped</span></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-weight:600; font-size:14px;"><span>✅ Live +EV Math Model Analytics</span><span style="color:#10B981;">Included</span></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:20px; font-weight:600; font-size:14px;"><span>✅ Full Access to All MLB Matches</span><span style="color:#10B981;">Unlocked</span></div>
+                
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <button id="buy-monthly-btn" style="width:100%; background:#10B981; color:white; border:none; padding:14px; border-radius:10px; font-weight:bold; font-size:15px; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <span style="display:block; font-size:16px;">🌙 Monthly Access</span>
+                            <span style="font-size:11px; font-weight:normal; opacity:0.9;">Renews manually every 30 days</span>
+                        </div>
+                        <span style="font-size:18px; font-weight:800;">$29.99</span>
+                    </button>
+
+                    <button id="buy-season-btn" style="width:100%; background:#002D72; color:white; border:2px solid #D50032; padding:14px; border-radius:10px; font-weight:bold; font-size:15px; cursor:pointer; text-align:left; display:flex; justify-content:space-between; align-items:center; position:relative;">
+                        <span style="position:absolute; top:-10px; right:15px; background:#D50032; color:white; font-size:9px; padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:0.5px;">🔥 Best Value (Save 30%)</span>
+                        <div>
+                            <span style="display:block; font-size:16px;">⚾ Full 2026 Season Pass</span>
+                            <span style="font-size:11px; font-weight:normal; opacity:0.8;">Valid through Nov 1, 2026 (World Series)</span>
+                        </div>
+                        <span style="font-size:18px; font-weight:800;">$149.00</span>
+                    </button>
+                </div>
+
+                <div style="text-align:center; font-size:11px; color:#9CA3AF; margin-top:20px;">🔒 Secured by Plisio (Crypto). Instant Activation.</div>
             </div>
         </div>
     </div>
@@ -225,45 +248,48 @@ document.body.insertAdjacentHTML('beforeend', paywallModalHtml);
 function openPaywallModal() { document.getElementById('paywall-modal').style.display = 'flex'; }
 function closePaywallModal() { document.getElementById('paywall-modal').style.display = 'none'; }
 
-// Кнопка «Купить VIP» → Plisio через бэкенд
-const buyVipBtn = document.getElementById('buy-vip-btn');
-if (buyVipBtn) {
-    buyVipBtn.addEventListener('click', async () => {
-        if (!currentUser || !currentUser.email) {
-            alert("Пожалуйста, сначала войдите в аккаунт.");
-            closePaywallModal();
-            openAuthModal();
-            return;
+async function initiateCryptoPayment(planType, buttonId) {
+    if (!currentUser || !currentUser.email) {
+        alert("Please sign in to upgrade your account.");
+        closePaywallModal(); openAuthModal(); return;
+    }
+
+    const btn = document.getElementById(buttonId);
+    const originalContent = btn.innerHTML;
+    btn.innerHTML = "<span>Generating Invoice...</span>";
+    btn.disabled = true;
+
+    try {
+        const response = await fetch(`${API_URL}/create-payment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                email: currentUser.email,
+                plan: planType
+            })
+        });
+
+        const data = await response.json();
+        if (data.payment_url) {
+            window.location.href = data.payment_url;
+        } else {
+            alert("Error creating crypto invoice. Try again.");
+            btn.innerHTML = originalContent; btn.disabled = false;
         }
-
-        const originalText = buyVipBtn.innerHTML;
-        buyVipBtn.innerHTML = "Generating Invoice...";
-        buyVipBtn.disabled = true;
-
-        try {
-            const response = await fetch(`${API_URL}/create-payment`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: currentUser.email })
-            });
-
-            const data = await response.json();
-
-            if (data.payment_url) {
-                window.location.href = data.payment_url;
-            } else {
-                alert("Ошибка при создании счета.");
-                buyVipBtn.innerHTML = originalText;
-                buyVipBtn.disabled = false;
-            }
-        } catch (error) {
-            console.error("Payment API Error:", error);
-            alert("Произошла ошибка связи с сервером.");
-            buyVipBtn.innerHTML = originalText;
-            buyVipBtn.disabled = false;
-        }
-    });
+    } catch (error) {
+        console.error("Payment Error:", error);
+        alert("Server timeout. Please try again.");
+        btn.innerHTML = originalContent; btn.disabled = false;
+    }
 }
+
+setTimeout(() => {
+    const monthlyBtn = document.getElementById('buy-monthly-btn');
+    const seasonBtn = document.getElementById('buy-season-btn');
+    
+    if (monthlyBtn) monthlyBtn.onclick = () => initiateCryptoPayment('monthly', 'buy-monthly-btn');
+    if (seasonBtn) seasonBtn.onclick = () => initiateCryptoPayment('season', 'buy-season-btn');
+}, 500);
 
 // === ОКНО: MATCH CENTER (BOX SCORE) ===
 const matchCenterModalHtml = `
