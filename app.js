@@ -716,6 +716,7 @@ async function submitAdminUpdate() {
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
             body: JSON.stringify({ 
+                secret_key: document.getElementById('admin-password-field').value,
                 ai_analysis: document.getElementById('admin-forecast-field').value, 
                 preview_text: document.getElementById('admin-stats-field').value, 
                 manual_pitchers: document.getElementById('admin-pitchers-field').value 
