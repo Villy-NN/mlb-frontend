@@ -1,0 +1,25 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#002D72"/>
+  
+  <path d="M1200 0L800 630H1000L1400 0H1200Z" fill="#D50032" fill-opacity="0.1"/>
+  <path d="M1000 0L600 630H800L1200 0H1000Z" fill="#D50032" fill-opacity="0.1"/>
+
+  <g transform="translate(150, 190) scale(1.6)">
+    <path d="M0 0.5C30 15 30 50 0 64.5" stroke="#D50032" stroke-width="4"/>
+    <path d="M65 0.5C35 15 35 50 65 64.5" stroke="#D50032" stroke-width="4"/>
+    <path d="M32.5 15C20 20 20 45 32.5 50M32.5 15C45 20 45 45 32.5 50" stroke="#D50032" stroke-width="4"/>
+    
+    <text x="32.5" y="40" font-family="Arial, sans-serif" font-weight="900" font-size="28" fill="#FFFFFF" text-anchor="middle">AI</text>
+  </g>
+
+  <text x="450" y="270" font-family="Impact, Arial, sans-serif" font-weight="bold" font-size="80" fill="#FFFFFF" letter-spacing="2">BASEPICKS AI</text>
+  
+  <rect x="450" y="300" width="600" height="4" fill="#D50032"/>
+
+  <text x="450" y="380" font-family="Arial, sans-serif" font-weight="900" font-size="50" fill="#10B981">BEAT VEGAS WITH AI</text>
+  
+  <text x="450" y="430" font-family="Arial, sans-serif" font-weight="bold" font-size="20" fill="#E5E7EB">ADVANCED MLB SABERMETRICS MODEL</text>
+  
+  <rect x="450" y="460" width="100" height="40" rx="8" fill="#D50032"/>
+  <text x="500" y="488" font-family="Arial, sans-serif" font-weight="bold" font-size="22" fill="#FFFFFF" text-anchor="middle">+EV Pick</text>
+</svg>
